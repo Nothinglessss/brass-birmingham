@@ -112,18 +112,34 @@ class GameLogic {
         return targets;
     }
 
+    hasBoardPresence(playerId) {
+        return Object.values(this.state.boardLinks)
+            .some(link => link.playerId === playerId) ||
+            Object.values(this.state.boardIndustries)
+                .some(tile => tile.playerId === playerId) ||
+            Object.values(this.state.breweryFarmTiles)
+                .some(tile => tile.playerId === playerId);
+    }
+
+    canUseIndustryCardAtLocation(playerId, cityId) {
+        return !this.hasBoardPresence(playerId) ||
+            this.state.isInNetwork(playerId, cityId);
+    }
+
     hasCardForBuild(playerId, cityId, industryType) {
         const player = this.state.players[playerId];
-        const inNetwork = this.state.isInNetwork(playerId, cityId);
+        const canUseIndustryCard = this.canUseIndustryCardAtLocation(playerId, cityId);
         for (const card of player.hand) {
             // Location card: can build at that location (no network needed)
             if (card.type === CARD_TYPES.LOCATION && card.location === cityId) return true;
             // Industry card: can build that industry at any location IN network
-            if (card.type === CARD_TYPES.INDUSTRY && card.industryType === industryType && inNetwork) return true;
+            if (card.type === CARD_TYPES.INDUSTRY &&
+                card.industryType === industryType &&
+                canUseIndustryCard) return true;
             // Wild location: acts as any location card
             if (card.type === CARD_TYPES.WILD_LOCATION) return true;
             // Wild industry: acts as any industry card (needs network)
-            if (card.type === CARD_TYPES.WILD_INDUSTRY && inNetwork) return true;
+            if (card.type === CARD_TYPES.WILD_INDUSTRY && canUseIndustryCard) return true;
         }
         return false;
     }
