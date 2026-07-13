@@ -404,16 +404,7 @@ class GameState {
     findIronSource(playerId) {
         const sources = [];
 
-        // Iron doesn't neç¿m¢G§²ÚîÆ­yÐ     !tile.flipped && tile.resourceCubes > 0) {
-                for (let c = 0; c < tile.resourceCubes; c++) {
-                    sources.push({ type: 'own', key: `farm_${farmId}` });
-                }
-            }
-        }
-
-        // Connected opponent breweries
-        const connected = this.getConnectedLocations(locationId);
-        for (const loc of connected) {
+        // Iron doesn't neëÞí¢G§²ÚîÆ­yÜoc of connected) {
             if (isCity(loc)) {
                 const city = CITIES[loc];
                 for (let i = 0; i < city.slots.length; i++) {
@@ -606,11 +597,19 @@ class GameState {
             }
         }
 
-        // Remove all industry tiles from board (all levels, flipped or not)
-        this.boardIndustries = {};
+        // Remove only obsolete level 1 industry tiles; level 2+ carry over to Rail Era.
+        for (const [key, tile] of Object.entries(this.boardIndustries)) {
+            if (tile.tileData.level === 1) {
+                delete this.boardIndustries[key];
+            }
+        }
 
-        // Remove all brewery farm tiles
-        this.breweryFarmTiles = {};
+        // Remove only obsolete level 1 brewery farm tiles.
+        for (const [farmId, tile] of Object.entries(this.breweryFarmTiles)) {
+            if (tile.tileData.level === 1) {
+                delete this.breweryFarmTiles[farmId];
+            }
+        }
 
         // Transition to rail era
         this.era = ERA.RAIL;
