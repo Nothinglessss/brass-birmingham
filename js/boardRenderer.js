@@ -7,6 +7,13 @@ class BoardRenderer {
     constructor(svgElement) {
         this.svg = svgElement;
         this.ns = 'http://www.w3.org/2000/svg';
+        this.cityLabelOverlay = typeof document.getElementById === 'function'
+            ? document.getElementById('city-label-overlay')
+            : null;
+        this.cityLabelResizeObserver = typeof ResizeObserver === 'function'
+            ? new ResizeObserver(() => this.syncBoardLabels())
+            : null;
+        if (this.cityLabelResizeObserver) this.cityLabelResizeObserver.observe(this.svg);
         this.citySlotSize = 22;
         this.cityPadding = 6;
         this.tooltip = null;
@@ -44,6 +51,92 @@ class BoardRenderer {
 
     createGroup(attrs = {}) {
         return this.createElement('g', attrs);
+    }
+
+    positionCityLabel(label, anchor) {
+        if (!label || !anchor || !this.cityLabelOverlay ||
+            typeof anchor.getBoundingClientRect !== 'function' ||
+            typeof this.cityLabelOverlay.getBoundingClientRect !== 'function') return;
+
+        const anchorRect = anchor.getBoundingClientRect();
+        const overlayRect = this.cityLabelOverlay.getBoundingClientRect();
+        const matrix = typeof anchor.getScreenCTM === 'function' ? anchor.getScreenCTM() : null;
+        const scale = matrix ? Math.hypot(Number(matrix.a) || 0, Number(matrix.b) || 0) : 1;
+        const fontSize = Number(anchor.getAttribute('font-size')) || 10;
+        const letterSpacing = Number(anchor.getAttribute('letter-spacing')) || 0;
+        const fontWeight = anchor.getAttribute('font-weight');
+
+        label.style.left = `${anchorRect.left + anchorRect.width / 2 - overlayRect.left}px`;
+        label.style.top = `${anchorRect.top + anchorRect.height / 2 - overlayRect.top}px`;
+        label.style.fontSize = `${fontSize * (scale || 1)}px`;
+        label.style.letterSpacing = `${letterSpacing * (scale || 1)}px`;
+        if (fontWeight) label.style.fontWeight = fontWeight;
+        label.style.pointerEvents = 'none';
+    }
+
+    syncCityLabels() {
+        if (!this.cityLabelOverlay || typeof document.createElement !== 'function') return;
+
+        const anchors = Array.from(this.svg.querySelectorAll('.city-label'));
+        const labels = Array.from(this.cityLabelOverlay.querySelectorAll('.city-label-html'));
+        const labelsByCity = new Map(labels.map(label => [label.dataset.city, label]));
+        const activeCityIds = new Set();
+
+        for (const anchor of anchors) {
+            const cityId = anchor.getAttribute('data-city');
+            if (!cityId) continue;
+            activeCityIds.add(cityId);
+
+            let label = labelsByCity.get(cityId);
+            if (!label) {
+                label = document.createElement('span');
+                label.className = 'city-label-html';
+                label.setAttribute('data-city', cityId);
+                label.textContent = anchor.textContent;
+                this.cityLabelOverlay.appendChild(label);
+            }
+
+            this.positionCityLabel(label, anchor);
+        }
+
+        for (const label of labels) {
+            if (!activeCityIds.has(label.dataset.city)) label.remove();
+        }
+    }
+
+    syncMerchantLabels() {
+        if (!this.cityLabelOverlay || typeof document.createElement !== 'function') return;
+
+        const anchors = Array.from(this.svg.querySelectorAll('.merchant-label'));
+        const labels = Array.from(this.cityLabelOverlay.querySelectorAll('.merchant-label-html'));
+        const labelsByMerchant = new Map(labels.map(label => [label.dataset.merchant, label]));
+        const activeMerchantIds = new Set();
+
+        for (const anchor of anchors) {
+            const merchantId = anchor.getAttribute('data-merchant-label');
+            if (!merchantId) continue;
+            activeMerchantIds.add(merchantId);
+
+            let label = labelsByMerchant.get(merchantId);
+            if (!label) {
+                label = document.createElement('span');
+                label.className = 'merchant-label-html';
+                label.setAttribute('data-merchant', merchantId);
+                label.textContent = anchor.textContent;
+                this.cityLabelOverlay.appendChild(label);
+            }
+
+            this.positionCityLabel(label, anchor);
+        }
+
+        for (const label of labels) {
+            if (!activeMerchantIds.has(label.dataset.merchant)) label.remove();
+        }
+    }
+
+    syncBoardLabels() {
+        this.syncCityLabels();
+        this.syncMerchantLabels();
     }
 
     // ========================================================================
@@ -505,10 +598,14 @@ class BoardRenderer {
             const nameText = this.createElement('text', {
                 x: 0, y: -2,
                 class: 'city-label',
+                'data-city': cityId,
                 'font-size': city.name.length > 12 ? '8.5' : '10',
                 'font-weight': '700',
                 'letter-spacing': '0.5',
                 fill: '#f0e0c0',
+                opacity: '0',
+                'aria-hidden': 'true',
+                translate: 'no',
             });
             nameText.textContent = city.name;
             g.appendChild(nameText);
@@ -585,6 +682,7 @@ class BoardRenderer {
         }
 
         this.svg.appendChild(cityGroup);
+        this.syncCityLabels();
     }
 
     drawBuiltIndustryTile(parent, x, y, tile) {
@@ -720,7 +818,11 @@ class BoardRenderer {
             const nameText = this.createElement('text', {
                 x: 0, y: 0,
                 class: 'merchant-label',
+                'data-merchant-label': merchId,
                 'font-size': '8',
+                opacity: '0',
+                'aria-hidden': 'true',
+                translate: 'no',
             });
             nameText.textContent = merch.name;
             g.appendChild(nameText);
@@ -780,6 +882,7 @@ class BoardRenderer {
         }
 
         this.svg.appendChild(merchantGroup);
+        this.syncMerchantLabels();
     }
 
     // ========================================================================
