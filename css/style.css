@@ -536,7 +536,7 @@ h1, h2, h3 {
 
 /* Right Panel */
 #right-panel {
-    width: 240px;
+    width: 300px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -615,16 +615,17 @@ h1, h2, h3 {
 
 .player-panel-stats {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     color: var(--text-secondary);
     font-size: 11px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .player-panel-stat {
     display: flex;
     align-items: center;
     gap: 3px;
+    white-space: nowrap;
     background: rgba(255,255,255,0.04);
     padding: 2px 5px;
     border-radius: 3px;
