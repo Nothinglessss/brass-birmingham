@@ -7,6 +7,13 @@ class BoardRenderer {
     constructor(svgElement) {
         this.svg = svgElement;
         this.ns = 'http://www.w3.org/2000/svg';
+        this.cityLabelOverlay = typeof document.getElementById === 'function'
+            ? document.getElementById('city-label-overlay')
+            : null;
+        this.cityLabelResizeObserver = typeof ResizeObserver === 'function'
+            ? new ResizeObserver(() => this.syncBoardLabels())
+            : null;
+        if (this.cityLabelResizeObserver) this.cityLabelResizeObserver.observe(this.svg);
         this.citySlotSize = 22;
         this.cityPadding = 6;
         this.tooltip = null;
@@ -44,6 +51,92 @@ class BoardRenderer {
 
     createGroup(attrs = {}) {
         return this.createElement('g', attrs);
+    }
+
+    positionCityLabel(label, anchor) {
+        if (!label || !anchor || !this.cityLabelOverlay ||
+            typeof anchor.getBoundingClientRect !== 'function' ||
+            typeof this.cityLabelOverlay.getBoundingClientRect !== 'function') return;
+
+        const anchorRect = anchor.getBoundingClientRect();
+        const overlayRect = this.cityLabelOverlay.getBoundingClientRect();
+        const matrix = typeof anchor.getScreenCTM === 'function' ? anchor.getScreenCTM() : null;
+        const scale = matrix ? Math.hypot(Number(matrix.a) || 0, Number(matrix.b) || 0) : 1;
+        const fontSize = Number(anchor.getAttribute('font-size')) || 10;
+        const letterSpacing = Number(anchor.getAttribute('letter-spacing')) || 0;
+        const fontWeight = anchor.getAttribute('font-weight');
+
+        label.style.left = `${anchorRect.left + anchorRect.width / 2 - overlayRect.left}px`;
+        label.style.top = `${anchorRect.top + anchorRect.height / 2 - overlayRect.top}px`;
+        label.style.fontSize = `${fontSize * (scale || 1)}px`;
+        label.style.letterSpacing = `${letterSpacing * (scale || 1)}px`;
+        if (fontWeight) label.style.fontWeight = fontWeight;
+        label.style.pointerEvents = 'none';
+    }
+
+    syncCityLabels() {
+        if (!this.cityLabelOverlay || typeof document.createElement !== 'function') return;
+
+        const anchors = Array.from(this.svg.querySelectorAll('.city-label'));
+        const labels = Array.from(this.cityLabelOverlay.querySelectorAll('.city-label-html'));
+        const labelsByCity = new Map(labels.map(label => [label.dataset.city, label]));
+        const activeCityIds = new Set();
+
+        for (const anchor of anchors) {
+            const cityId = anchor.getAttribute('data-city');
+            if (!cityId) continue;
+            activeCityIds.add(cityId);
+
+            let label = labelsByCity.get(cityId);
+            if (!label) {
+                label = document.createElement('span');
+                label.className = 'city-label-html';
+                label.setAttribute('data-city', cityId);
+                label.textContent = anchor.textContent;
+                this.cityLabelOverlay.appendChild(label);
+            }
+
+            this.positionCityLabel(label, anchor);
+        }
+
+        for (const label of labels) {
+            if (!activeCityIds.has(label.dataset.city)) label.remove();
+        }
+    }
+
+    syncMerchantLabels() {
+        if (!this.cityLabelOverlay || typeof document.createElement !== 'function') return;
+
+        const anchors = Array.from(this.svg.querySelectorAll('.merchant-label'));
+        const labels = Array.from(this.cityLabelOverlay.querySelectorAll('.merchant-label-html'));
+        const labelsByMerchant = new Map(labels.map(label => [label.dataset.merchant, label]));
+        const activeMerchantIds = new Set();
+
+        for (const anchor of anchors) {
+            const merchantId = anchor.getAttribute('data-merchant-label');
+            if (!merchantId) continue;
+            activeMerchantIds.add(merchantId);
+
+            let label = labelsByMerchant.get(merchantId);
+            if (!label) {
+                label = document.createElement('span');
+                label.className = 'merchant-label-html';
+                label.setAttribute('data-merchant', merchantId);
+                label.textContent = anchor.textContent;
+                this.cityLabelOverlay.appendChild(label);
+            }
+
+            this.positionCityLabel(label, anchor);
+        }
+
+        for (const label of labels) {
+            if (!activeMerchantIds.has(label.dataset.merchant)) label.remove();
+        }
+    }
+
+    syncBoardLabels() {
+        this.syncCityLabels();
+        this.syncMerchantLabels();
     }
 
     // ========================================================================
@@ -256,750 +349,5 @@ class BoardRenderer {
             in: 'SourceGraphic', stdDeviation: '2.5', result: 'coloredBlur',
         }));
         const glowMerge = this.createElement('feMerge');
-        glowMerge.appendChild(this.createElement('feMergeNode', { in: 'coloredBlur' }));
-        glowMerge.appendChild(this.createElement('feMergeNode', { in: 'SourceGraphic' }));
-        glowFilter.appendChild(glowMerge);
-        defs.appendChild(glowFilter);
-
-        // Region background patterns β€” richer contrast
-        for (const [regionId, colors] of Object.entries(REGION_COLORS)) {
-            const grad = this.createElement('radialGradient', { id: `region_${regionId}`, cx: '50%', cy: '50%', r: '60%' });
-            grad.appendChild(this.createElement('stop', { offset: '0%', 'stop-color': colors.fill, 'stop-opacity': '0.38' }));
-            grad.appendChild(this.createElement('stop', { offset: '100%', 'stop-color': colors.fill, 'stop-opacity': '0.12' }));
-            defs.appendChild(grad);
-        }
-
-        this.svg.appendChild(defs);
-
-        // Main board rect with texture
-        const bgGroup = this.createGroup({ filter: 'url(#parchmentNoise)' });
-        bgGroup.appendChild(this.createElement('rect', {
-            x: 0, y: 0, width: 900, height: 850,
-            fill: 'url(#boardBg)',
-            rx: 8, ry: 8,
-        }));
-        this.svg.appendChild(bgGroup);
-
-        // Vignette overlay
-        this.svg.appendChild(this.createElement('rect', {
-            x: 0, y: 0, width: 900, height: 850,
-            fill: 'url(#boardBg)',
-            rx: 8, ry: 8,
-            opacity: '0.3',
-            filter: 'url(#vignette)',
-        }));
-
-        // Decorative double-border frame
-        this.svg.appendChild(this.createElement('rect', {
-            x: 4, y: 4, width: 892, height: 842,
-            fill: 'none',
-            stroke: '#5a4a38',
-            'stroke-width': 1,
-            rx: 7, ry: 7,
-        }));
-        this.svg.appendChild(this.createElement('rect', {
-            x: 8, y: 8, width: 884, height: 834,
-            fill: 'none',
-            stroke: '#3a2c20',
-            'stroke-width': 0.5,
-            rx: 5, ry: 5,
-        }));
-
-        // Title
-        const titleGroup = this.createGroup({ transform: 'translate(450, 830)' });
-        const titleText = this.createElement('text', {
-            'text-anchor': 'middle',
-            'font-family': 'Cinzel, serif',
-            'font-size': '12',
-            fill: '#6a5a48',
-            'letter-spacing': '4',
-        });
-        titleText.textContent = 'BRASS: BIRMINGHAM';
-        titleGroup.appendChild(titleText);
-        this.svg.appendChild(titleGroup);
-    }
-
-    // ========================================================================
-    // Connections with enhanced canal/rail styling
-    // ========================================================================
-
-    drawConnections() {
-        const connGroup = this.createGroup({ id: 'connections-layer' });
-
-        for (const conn of CONNECTIONS) {
-            const pos1 = getLocationPosition(conn.cities[0]);
-            const pos2 = getLocationPosition(conn.cities[1]);
-            if (!pos1 || !pos2) continue;
-
-            const isCanal = conn.canal;
-            const isRail = conn.rail;
-            const era = this.state ? this.state.era : ERA.CANAL;
-
-            // Get line segments (handle via-brewery routing)
-            const segments = [];
-            if (conn.viaBrewery) {
-                const brewPos = getLocationPosition(conn.viaBrewery);
-                if (brewPos) {
-                    segments.push({ x1: pos1.x, y1: pos1.y, x2: brewPos.x, y2: brewPos.y });
-                    segments.push({ x1: brewPos.x, y1: brewPos.y, x2: pos2.x, y2: pos2.y });
-                }
-            } else {
-                segments.push({ x1: pos1.x, y1: pos1.y, x2: pos2.x, y2: pos2.y });
-            }
-
-            for (const seg of segments) {
-                if (isCanal && era === ERA.CANAL) {
-                    // Canal: vibrant blue water with glow
-                    // Outer thick translucent glow
-                    connGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#4499cc',
-                        'stroke-width': 8,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.22',
-                        'data-connection': conn.id,
-                        class: 'connection-line',
-                    }));
-                    // Mid layer for contrast
-                    connGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#3388bb',
-                        'stroke-width': 4,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.45',
-                        'data-connection': conn.id,
-                        class: 'connection-line',
-                        'pointer-events': 'none',
-                    }));
-                    // Inner bright center
-                    connGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#66bbee',
-                        'stroke-width': 3,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.7',
-                        'data-connection': conn.id,
-                        class: 'connection-line',
-                        'pointer-events': 'none',
-                    }));
-                } else if (isRail && era === ERA.RAIL) {
-                    // Rail: dark ballast bed with visible tie marks
-                    // Outer thick dark ballast
-                    connGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#555',
-                        'stroke-width': 5,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.55',
-                        'data-connection': conn.id,
-                        class: 'connection-line',
-                    }));
-                    // Rail sleepers/ties β€” dotted dark line
-                    connGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#888',
-                        'stroke-width': 2,
-                        'stroke-linecap': 'butt',
-                        'stroke-dasharray': '3 7',
-                        'stroke-opacity': '0.65',
-                        'data-connection': conn.id,
-                        class: 'connection-line',
-                        'pointer-events': 'none',
-                    }));
-                }
-            }
-
-            // Dual connection indicator
-            if (!conn.viaBrewery && isCanal && isRail) {
-                const midX = (pos1.x + pos2.x) / 2;
-                const midY = (pos1.y + pos2.y) / 2;
-                connGroup.appendChild(this.createElement('circle', {
-                    cx: midX, cy: midY, r: 2.5,
-                    fill: '#5599cc', opacity: '0.4',
-                    stroke: '#777', 'stroke-width': 0.5,
-                }));
-            }
-        }
-
-        this.svg.appendChild(connGroup);
-    }
-
-    // ========================================================================
-    // Cities with enhanced styling
-    // ========================================================================
-
-    // Returns a slot border color for a given industry type
-    getSlotBorderColor(type) {
-        const slotColors = {
-            [INDUSTRY_TYPES.COTTON_MILL]: '#b8c5a0',
-            [INDUSTRY_TYPES.COAL_MINE]: '#6a6a6a',
-            [INDUSTRY_TYPES.IRON_WORKS]: '#c87820',
-            [INDUSTRY_TYPES.MANUFACTURER]: '#9a7a30',
-            [INDUSTRY_TYPES.POTTERY]: '#b05040',
-            [INDUSTRY_TYPES.BREWERY]: '#c8a030',
-        };
-        return slotColors[type] || 'rgba(255,255,255,0.25)';
-    }
-
-    drawCities() {
-        const cityGroup = this.createGroup({ id: 'cities-layer' });
-
-        for (const [cityId, city] of Object.entries(CITIES)) {
-            const g = this.createGroup({
-                class: 'city-group',
-                'data-city': cityId,
-                transform: `translate(${city.x}, ${city.y})`
-            });
-
-            // Calculate city dimensions
-            const slotsPerRow = Math.min(city.slots.length, 4);
-            const rows = Math.ceil(city.slots.length / slotsPerRow);
-            const cityWidth = slotsPerRow * (this.citySlotSize + 4) + this.cityPadding * 2;
-            const cityHeight = rows * (this.citySlotSize + 4) + 26 + this.cityPadding;
-
-            const regionColors = REGION_COLORS[city.region] || REGION_COLORS.birmingham;
-
-            // Outer glow ring β€” larger rounded rect for a distinctive "city node" look
-            g.appendChild(this.createElement('rect', {
-                x: -cityWidth / 2 - 3,
-                y: -17,
-                width: cityWidth + 6,
-                height: cityHeight + 6,
-                rx: 10, ry: 10,
-                fill: 'none',
-                stroke: regionColors.border,
-                'stroke-width': 2.5,
-                'stroke-opacity': '0.6',
-                filter: 'url(#innerShadow)',
-            }));
-
-            // City body β€” rounded shape (rounder rx/ry)
-            g.appendChild(this.createElement('rect', {
-                x: -cityWidth / 2,
-                y: -14,
-                width: cityWidth,
-                height: cityHeight,
-                rx: 8, ry: 8,
-                class: 'city-bg',
-                fill: regionColors.fill,
-                'fill-opacity': '0.55',
-                stroke: regionColors.border,
-                'stroke-width': '2',
-                filter: 'url(#innerShadow)',
-            }));
-
-            // Dark backing rect behind city name for readability
-            const nameLen = city.name.length;
-            const nameWidth = Math.max(nameLen * 6.5 + 12, cityWidth - 4);
-            g.appendChild(this.createElement('rect', {
-                x: -nameWidth / 2,
-                y: -13,
-                width: nameWidth,
-                height: 16,
-                fill: 'rgba(0,0,0,0.72)',
-                rx: 5, ry: 5,
-                class: 'city-label-bg',
-            }));
-
-            // City name β€” larger and more readable
-            const nameText = this.createElement('text', {
-                x: 0, y: -2,
-                class: 'city-label',
-                'font-size': city.name.length > 12 ? '8.5' : '10',
-                'font-weight': '700',
-                'letter-spacing': '0.5',
-                fill: '#f0e0c0',
-            });
-            nameText.textContent = city.name;
-            g.appendChild(nameText);
-
-            // Industry slots
-            const slotStartX = -(slotsPerRow * (this.citySlotSize + 4) - 4) / 2;
-            const slotStartY = 10;
-
-            city.slots.forEach((slotTypes, idx) => {
-                const row = Math.floor(idx / slotsPerRow);
-                const col = idx % slotsPerRow;
-                const sx = slotStartX + col * (this.citySlotSize + 4);
-                const sy = slotStartY + row * (this.citySlotSize + 4);
-
-                const slotGroup = this.createGroup({
-                    class: 'industry-slot',
-                    'data-city': cityId,
-                    'data-slot': idx,
-                });
-
-                const typeArr = Array.isArray(slotTypes) ? slotTypes : [slotTypes];
-
-                // Slot border color based on primary type
-                const slotBorderColor = this.getSlotBorderColor(typeArr[0]);
-
-                // Slot background with industry-type colored border
-                slotGroup.appendChild(this.createElement('rect', {
-                    x: sx, y: sy,
-                    width: this.citySlotSize, height: this.citySlotSize,
-                    rx: 4, ry: 4,
-                    fill: 'rgba(0,0,0,0.5)',
-                    stroke: slotBorderColor,
-                    'stroke-width': '1.5',
-                    'stroke-opacity': typeArr.length > 1 ? '0.5' : '0.7',
-                }));
-
-                const boardKey = `${cityId}_${idx}`;
-                const builtTile = this.state ? this.state.boardIndustries[boardKey] : null;
-
-                if (builtTile) {
-                    this.drawBuiltIndustryTile(slotGroup, sx, sy, builtTile);
-                } else {
-                    // Show slot type indicators with SVG icons
-                    if (typeArr.length === 1) {
-                        // Single type: show icon
-                        const iconG = this.getIndustryIcon(typeArr[0], 13);
-                        iconG.setAttribute('transform', `translate(${sx + this.citySlotSize/2}, ${sy + this.citySlotSize/2})`);
-                        iconG.setAttribute('opacity', '0.45');
-                        slotGroup.appendChild(iconG);
-                    } else {
-                        // Multiple types: show abbreviations with better contrast
-                        const typeStr = typeArr.map(t => {
-                            const d = INDUSTRY_DISPLAY[t];
-                            return d ? d.shortName[0] : '?';
-                        }).join('/');
-
-                        const iconText = this.createElement('text', {
-                            x: sx + this.citySlotSize / 2,
-                            y: sy + this.citySlotSize / 2,
-                            class: 'slot-icon',
-                            'font-size': '7',
-                            fill: 'rgba(255,255,255,0.5)',
-                            'dominant-baseline': 'central',
-                        });
-                        iconText.textContent = typeStr;
-                        slotGroup.appendChild(iconText);
-                    }
-                }
-
-                g.appendChild(slotGroup);
-            });
-
-            cityGroup.appendChild(g);
-        }
-
-        this.svg.appendChild(cityGroup);
-    }
-
-    drawBuiltIndustryTile(parent, x, y, tile) {
-        const s = this.citySlotSize;
-        const display = INDUSTRY_DISPLAY[tile.type];
-        const playerColor = this.state.players[tile.playerId].color;
-
-        // Outer glow for player color β€” makes tiles visually prominent
-        parent.appendChild(this.createElement('rect', {
-            x: x - 2, y: y - 2,
-            width: s + 4, height: s + 4,
-            rx: 6, ry: 6,
-            fill: 'none',
-            stroke: playerColor,
-            'stroke-width': 2,
-            'stroke-opacity': tile.flipped ? '0.3' : '0.55',
-            filter: `drop-shadow(0 0 3px ${playerColor})`,
-        }));
-
-        // Tile background with player color
-        parent.appendChild(this.createElement('rect', {
-            x, y, width: s, height: s,
-            rx: 4, ry: 4,
-            fill: tile.flipped
-                ? 'url(#tileFlippedBg)'
-                : playerColor,
-            stroke: tile.flipped ? '#5aaa5a' : 'rgba(255,255,255,0.25)',
-            'stroke-width': tile.flipped ? 1.5 : 1,
-            opacity: tile.flipped ? 0.92 : 1,
-            class: 'built-tile' + (tile.flipped ? ' flipped' : ''),
-        }));
-
-        // Shine highlight at top of tile
-        parent.appendChild(this.createElement('rect', {
-            x: x + 2, y: y + 2,
-            width: s - 4, height: 4,
-            rx: 2, ry: 2,
-            fill: 'rgba(255,255,255,0.2)',
-        }));
-
-        // Level number β€” larger and bolder
-        const levelText = this.createElement('text', {
-            x: x + 4, y: y + 10,
-            'font-size': '9',
-            fill: tile.flipped ? '#9aea9a' : 'white',
-            'font-weight': '800',
-            'font-family': 'Cinzel, serif',
-        });
-        levelText.textContent = tile.tileData.level;
-        parent.appendChild(levelText);
-
-        // Industry SVG icon in center β€” larger
-        const iconG = this.getIndustryIcon(tile.type, 12);
-        iconG.setAttribute('transform', `translate(${x + s/2}, ${y + s/2 + 2})`);
-        if (tile.flipped) {
-            iconG.setAttribute('opacity', '0.8');
-        }
-        parent.appendChild(iconG);
-
-        // VP badge if flipped β€” bigger and clearer
-        if (tile.flipped) {
-            parent.appendChild(this.createElement('circle', {
-                cx: x + s - 5, cy: y + s - 5, r: 6,
-                fill: '#c9a84c',
-                stroke: '#8a6020',
-                'stroke-width': 1,
-                filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))',
-            }));
-            const vpText = this.createElement('text', {
-                x: x + s - 5, y: y + s - 2,
-                'text-anchor': 'middle',
-                'font-size': '7',
-                fill: '#1a1510',
-                'font-weight': '800',
-            });
-            vpText.textContent = tile.tileData.vp;
-            parent.appendChild(vpText);
-        }
-
-        // Resource cubes
-        if (!tile.flipped && tile.resourceCubes > 0) {
-            const cubeSize = 5;
-            for (let i = 0; i < tile.resourceCubes; i++) {
-                const cx = x + s - 5 - (i % 3) * 6;
-                const cy = y + s - 5 - Math.floor(i / 3) * 6;
-                let cubeColor = '#666';
-                let cubeShadow = '#333';
-                if (tile.type === INDUSTRY_TYPES.COAL_MINE) { cubeColor = '#3a3a3a'; cubeShadow = '#111'; }
-                else if (tile.type === INDUSTRY_TYPES.IRON_WORKS) { cubeColor = '#e08020'; cubeShadow = '#904800'; }
-                else if (tile.type === INDUSTRY_TYPES.BREWERY) { cubeColor = '#d4b840'; cubeShadow = '#907010'; }
-
-                parent.appendChild(this.createElement('rect', {
-                    x: cx - cubeSize / 2, y: cy - cubeSize / 2,
-                    width: cubeSize, height: cubeSize,
-                    rx: 1, ry: 1,
-                    fill: cubeColor,
-                    stroke: 'rgba(255,255,255,0.35)',
-                    'stroke-width': 0.5,
-                    class: 'resource-cube',
-                    filter: `drop-shadow(0 1px 1px ${cubeShadow})`,
-                }));
-            }
-        }
-    }
-
-    // ========================================================================
-    // Merchants
-    // ========================================================================
-
-    drawMerchants() {
-        const merchantGroup = this.createGroup({ id: 'merchants-layer' });
-
-        for (const [merchId, merch] of Object.entries(MERCHANTS)) {
-            if (this.state && merch.minPlayers > this.state.numPlayers) continue;
-
-            const g = this.createGroup({
-                class: 'merchant-group',
-                'data-merchant': merchId,
-                transform: `translate(${merch.x}, ${merch.y})`
-            });
-
-            const w = 60;
-            const h = 30 + merch.slots * 12;
-
-            // Background
-            g.appendChild(this.createElement('rect', {
-                x: -w / 2, y: -12,
-                width: w, height: h,
-                class: 'merchant-bg',
-            }));
-
-            // Name
-            const nameText = this.createElement('text', {
-                x: 0, y: 0,
-                class: 'merchant-label',
-                'font-size': '8',
-            });
-            nameText.textContent = merch.name;
-            g.appendChild(nameText);
-
-            // Merchant slots
-            for (let i = 0; i < merch.slots; i++) {
-                g.appendChild(this.createElement('rect', {
-                    x: -20, y: 5 + i * 14,
-                    width: 40, height: 11,
-                    class: 'merchant-slot',
-                }));
-
-                if (this.state) {
-                    const matchingTiles = this.state.merchantTiles.filter(t => t.location === merchId);
-                    if (matchingTiles[i]) {
-                        const mt = matchingTiles[i];
-                        const buyText = this.createElement('text', {
-                            x: 0, y: 13 + i * 14,
-                            'text-anchor': 'middle',
-                            'font-size': '6',
-                            fill: mt.bonusClaimed ? '#555' : '#b87333',
-                        });
-                        buyText.textContent = mt.buys ?
-                            INDUSTRY_DISPLAY[mt.buys].shortName :
-                            'Any';
-                        g.appendChild(buyText);
-
-                        if (mt.hasBeer) {
-                            g.appendChild(this.createElement('circle', {
-                                cx: 14, cy: 11 + i * 14,
-                                r: 3,
-                                fill: '#c9a84c',
-                                stroke: '#a08030',
-                                'stroke-width': 0.5,
-                            }));
-                        }
-                    }
-                }
-            }
-
-            // Bonus indicator
-            const bonusText = this.createElement('text', {
-                x: 0, y: h - 8,
-                'text-anchor': 'middle',
-                'font-size': '6',
-                fill: '#888',
-            });
-            let bonusStr = '';
-            if (merch.bonusType === 'vp') bonusStr = `+${merch.bonusAmount} VP`;
-            else if (merch.bonusType === 'money') bonusStr = `+Β£${merch.bonusAmount}`;
-            else if (merch.bonusType === 'income') bonusStr = `+${merch.bonusAmount} Inc`;
-            else if (merch.bonusType === 'develop') bonusStr = `Free Dev`;
-            bonusText.textContent = bonusStr;
-            g.appendChild(bonusText);
-
-            merchantGroup.appendChild(g);
-        }
-
-        this.svg.appendChild(merchantGroup);
-    }
-
-    // ========================================================================
-    // Brewery Farms
-    // ========================================================================
-
-    drawBreweryFarms() {
-        const farmGroup = this.createGroup({ id: 'brewery-farms-layer' });
-
-        for (const [farmId, farm] of Object.entries(BREWERY_FARMS)) {
-            const g = this.createGroup({
-                class: 'brewery-farm',
-                'data-farm': farmId,
-                transform: `translate(${farm.x}, ${farm.y})`
-            });
-
-            g.appendChild(this.createElement('rect', {
-                x: -14, y: -14,
-                width: 28, height: 28,
-                class: 'brewery-farm-bg',
-            }));
-
-            const builtTile = this.state ? this.state.breweryFarmTiles[farmId] : null;
-            if (builtTile) {
-                this.drawBuiltIndustryTile(g, -11, -11, builtTile);
-            } else {
-                // Show brewery icon
-                const iconG = this.getIndustryIcon(INDUSTRY_TYPES.BREWERY, 14);
-                iconG.setAttribute('transform', 'translate(0, 0)');
-                iconG.setAttribute('opacity', '0.4');
-                g.appendChild(iconG);
-            }
-
-            farmGroup.appendChild(g);
-        }
-
-        this.svg.appendChild(farmGroup);
-    }
-
-    // ========================================================================
-    // Built Links with enhanced styling
-    // ========================================================================
-
-    drawBuiltLinks() {
-        const linkGroup = this.createGroup({ id: 'built-links-layer' });
-
-        if (!this.state) return;
-
-        for (const [connId, link] of Object.entries(this.state.boardLinks)) {
-            const conn = CONNECTIONS.find(c => c.id === connId);
-            if (!conn) continue;
-
-            const pos1 = getLocationPosition(conn.cities[0]);
-            const pos2 = getLocationPosition(conn.cities[1]);
-            if (!pos1 || !pos2) continue;
-
-            const playerColor = this.state.players[link.playerId].color;
-
-            const drawBuiltSegment = (seg) => {
-                if (link.type === 'canal') {
-                    // Built canal: solid thick blue with player color overlay
-                    // Outer blue glow (water base)
-                    linkGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#4499cc',
-                        'stroke-width': 10,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.3',
-                        class: 'connection-line built',
-                    }));
-                    // Mid blue layer
-                    linkGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#3388bb',
-                        'stroke-width': 6,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.5',
-                        class: 'connection-line built',
-                    }));
-                    // Player color overlay β€” bright center
-                    linkGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: playerColor,
-                        'stroke-width': 3,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.85',
-                        class: 'connection-line built',
-                    }));
-                } else {
-                    // Built rail: dark with player color, with tie pattern
-                    // Outer dark ballast bed
-                    linkGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: '#333',
-                        'stroke-width': 7,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.7',
-                        class: 'connection-line built',
-                    }));
-                    // Player color rail line
-                    linkGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: playerColor,
-                        'stroke-width': 4,
-                        'stroke-linecap': 'round',
-                        'stroke-opacity': '0.75',
-                        class: 'connection-line built',
-                    }));
-                    // Tie/sleeper pattern over player color
-                    linkGroup.appendChild(this.createElement('line', {
-                        ...seg,
-                        stroke: 'rgba(0,0,0,0.5)',
-                        'stroke-width': 3,
-                        'stroke-linecap': 'butt',
-                        'stroke-dasharray': '3 8',
-                        class: 'connection-line built',
-                    }));
-                }
-            };
-
-            if (conn.viaBrewery) {
-                const brewPos = getLocationPosition(conn.viaBrewery);
-                if (brewPos) {
-                    drawBuiltSegment({ x1: pos1.x, y1: pos1.y, x2: brewPos.x, y2: brewPos.y });
-                    drawBuiltSegment({ x1: brewPos.x, y1: brewPos.y, x2: pos2.x, y2: pos2.y });
-                }
-            } else {
-                drawBuiltSegment({ x1: pos1.x, y1: pos1.y, x2: pos2.x, y2: pos2.y });
-            }
-
-            // Link type indicator at midpoint
-            const midX = (pos1.x + pos2.x) / 2;
-            const midY = (pos1.y + pos2.y) / 2;
-
-            // Small colored circle with type indicator
-            linkGroup.appendChild(this.createElement('circle', {
-                cx: midX, cy: midY, r: 6,
-                fill: playerColor,
-                stroke: 'rgba(255,255,255,0.3)',
-                'stroke-width': 0.5,
-            }));
-            const typeIcon = this.createElement('text', {
-                x: midX, y: midY + 3,
-                'text-anchor': 'middle',
-                'font-size': '7',
-                fill: 'white',
-                'pointer-events': 'none',
-            });
-            typeIcon.textContent = link.type === 'canal' ? '~' : '#';
-            linkGroup.appendChild(typeIcon);
-        }
-
-        this.svg.appendChild(linkGroup);
-    }
-
-    // ========================================================================
-    // Highlighting for valid placements
-    // ========================================================================
-
-    highlightSlots(validSlots) {
-        this.clearHighlights();
-        for (const slot of validSlots) {
-            const el = this.svg.querySelector(
-                `.industry-slot[data-city="${slot.cityId}"][data-slot="${slot.slotIndex}"]`
-            );
-            if (el) {
-                el.classList.add('highlight-slot');
-            }
-        }
-    }
-
-    highlightConnections(validConnections) {
-        this.clearHighlights();
-        for (const connId of validConnections) {
-            const els = this.svg.querySelectorAll(`[data-connection="${connId}"]`);
-            els.forEach(el => el.classList.add('highlight'));
-        }
-    }
-
-    clearHighlights() {
-        this.svg.querySelectorAll('.highlight-slot').forEach(el =>
-            el.classList.remove('highlight-slot'));
-        this.svg.querySelectorAll('.highlight').forEach(el =>
-            el.classList.remove('highlight'));
-    }
-
-    // ========================================================================
-    // Update methods
-    // ========================================================================
-
-    updateIndustrySlots() {
-        const oldCities = this.svg.querySelector('#cities-layer');
-        if (oldCities) oldCities.remove();
-        this.drawCities();
-    }
-
-    updateLinks() {
-        const oldLinks = this.svg.querySelector('#built-links-layer');
-        if (oldLinks) oldLinks.remove();
-        this.drawBuiltLinks();
-    }
-
-    updateMerchantBeer() {
-        const oldMerchants = this.svg.querySelector('#merchants-layer');
-        if (oldMerchants) oldMerchants.remove();
-        this.drawMerchants();
-    }
-
-    fullUpdate(gameState) {
-        this.state = gameState;
-        // Remove all dynamic layers first, then re-add in the correct draw order so
-        // that built links always render on top of cities, merchants, and brewery farms.
-        this.svg.querySelector('#brewery-farms-layer')?.remove();
-        this.svg.querySelector('#merchants-layer')?.remove();
-        this.svg.querySelector('#cities-layer')?.remove();
-        this.svg.querySelector('#built-links-layer')?.remove();
-
-        this.drawBreweryFarms();
-        this.drawMerchants();
-        this.drawCities();
-        this.drawBuiltLinks();
-    }
-}
+        glowMerge.appendChild(thisη^t¶‰ΛkΊwµη@€€€€€€ΰθΰ€¬€Π°δθδ€¬€Δΐ°(€€€€€€€€€€€€™½ΉΠµΝ¥ι”θ€δ°(€€€€€€€€€€€™¥±°θΡ¥±”Ή™±¥ΑΑ•€ό€ε…•„ε„€θ€έ΅¥Ρ”°(€€€€€€€€€€€€™½ΉΠµέ•¥΅Πθ€ΰΐΐ°(€€€€€€€€€€€€™½ΉΠµ™…µ¥±δθ€¥Ήι•°°Ν•Ι¥°(€€€€€€€τ¤μ(€€€€€€€±•Ω•±Q•αΠΉΡ•αΡ½ΉΡ•ΉΠ€τΡ¥±”ΉΡ¥±•…Ρ„Ή±•Ω•°μ(€€€€€€€Α…Ι•ΉΠΉ…ΑΑ•Ή‘΅¥±΅±•Ω•±Q•αΠ¤μ((€€€€€€€€ΌΌ%Ή‘ΥΝΡΙδMY¥½Έ¥Έ•ΉΡ•ΘƒP±…Ι•Θ(€€€€€€€½ΉΝΠ¥½Ή€τΡ΅¥ΜΉ•Ρ%Ή‘ΥΝΡΙε%½Έ΅Ρ¥±”ΉΡεΑ”°€ΔΘ¤μ(€€€€€€€¥½ΉΉΝ•ΡΡΡΙ¥‰ΥΡ” ΡΙ…ΉΝ™½Ι΄°ΡΙ…ΉΝ±…Ρ” ‘νΰ€¬ΜΌΙτ°€‘νδ€¬ΜΌΘ€¬€Ιτ¥€¤μ(€€€€€€€¥€΅Ρ¥±”Ή™±¥ΑΑ•¤μ(€€€€€€€€€€€¥½ΉΉΝ•ΡΡΡΙ¥‰ΥΡ” ½Α…¥Ρδ°€ΐΈΰ¤μ(€€€€€€€τ(€€€€€€€Α…Ι•ΉΠΉ…ΑΑ•Ή‘΅¥±΅¥½Ή¤μ((€€€€€€€€ΌΌY@‰…‘”¥™±¥ΑΑ•ƒP‰¥•Θ…Ή±•…Ι•Θ(€€€€€€€¥€΅Ρ¥±”Ή™±¥ΑΑ•¤μ(€€€€€€€€€€€Α…Ι•ΉΠΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ¥Ι±”°μ(€€€€€€€€€€€€€€€ΰθΰ€¬Μ€΄€Τ°δθδ€¬Μ€΄€Τ°Θθ€Ψ°(€€€€€€€€€€€€€€€™¥±°θ€ε„ΰΡ°(€€€€€€€€€€€€€€€ΝΡΙ½­”θ€α„ΨΐΘΐ°(€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€Δ°(€€€€€€€€€€€€€€€™¥±Ρ•Θθ€‘Ι½ΐµΝ΅…‘½ά ΐ€ΕΑΰ€ΙΑΰΙ‰„ ΐ°ΐ°ΐ°ΐΈΨ¤¤°(€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€½ΉΝΠΩΑQ•αΠ€τΡ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ρ•αΠ°μ(€€€€€€€€€€€€€€€ΰθΰ€¬Μ€΄€Τ°δθδ€¬Μ€΄€Θ°(€€€€€€€€€€€€€€€€Ρ•αΠµ…Ή΅½Θθ€µ¥‘‘±”°(€€€€€€€€€€€€€€€€™½ΉΠµΝ¥ι”θ€ά°(€€€€€€€€€€€€€€€™¥±°θ€Ε„ΔΤΔΐ°(€€€€€€€€€€€€€€€€™½ΉΠµέ•¥΅Πθ€ΰΐΐ°(€€€€€€€€€€€τ¤μ(€€€€€€€€€€€ΩΑQ•αΠΉΡ•αΡ½ΉΡ•ΉΠ€τΡ¥±”ΉΡ¥±•…Ρ„ΉΩΐμ(€€€€€€€€€€€Α…Ι•ΉΠΉ…ΑΑ•Ή‘΅¥±΅ΩΑQ•αΠ¤μ(€€€€€€€τ((€€€€€€€€ΌΌI•Ν½ΥΙ”Υ‰•Μ(€€€€€€€¥€ …Ρ¥±”Ή™±¥ΑΑ•€Ρ¥±”ΉΙ•Ν½ΥΙ•Υ‰•Μ€ψ€ΐ¤μ(€€€€€€€€€€€½ΉΝΠΥ‰•M¥ι”€τ€Τμ(€€€€€€€€€€€™½Θ€΅±•Π¤€τ€ΐμ¤€πΡ¥±”ΉΙ•Ν½ΥΙ•Υ‰•Μμ¤¬¬¤μ(€€€€€€€€€€€€€€€½ΉΝΠΰ€τΰ€¬Μ€΄€Τ€΄€΅¤€”€Μ¤€¨€Ψμ(€€€€€€€€€€€€€€€½ΉΝΠδ€τδ€¬Μ€΄€Τ€΄5…Ρ Ή™±½½Θ΅¤€Ό€Μ¤€¨€Ψμ(€€€€€€€€€€€€€€€±•ΠΥ‰•½±½Θ€τ€ΨΨΨμ(€€€€€€€€€€€€€€€±•ΠΥ‰•M΅…‘½ά€τ€ΜΜΜμ(€€€€€€€€€€€€€€€¥€΅Ρ¥±”ΉΡεΑ”€τττ%9UMQIe}QeALΉ=1}5%9¤μΥ‰•½±½Θ€τ€Ν„Ν„Ν„μΥ‰•M΅…‘½ά€τ€ΔΔΔμτ(€€€€€€€€€€€€€€€•±Ν”¥€΅Ρ¥±”ΉΡεΑ”€τττ%9UMQIe}QeALΉ%I=9}]=I-L¤μΥ‰•½±½Θ€τ€”ΐΰΐΘΐμΥ‰•M΅…‘½ά€τ€δΐΠΰΐΐμτ(€€€€€€€€€€€€€€€•±Ν”¥€΅Ρ¥±”ΉΡεΑ”€τττ%9UMQIe}QeALΉ	I]Id¤μΥ‰•½±½Θ€τ€ΡΰΠΐμΥ‰•M΅…‘½ά€τ€δΐάΐΔΐμτ((€€€€€€€€€€€€€€€Α…Ι•ΉΠΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ι•Π°μ(€€€€€€€€€€€€€€€€€€€ΰθΰ€΄Υ‰•M¥ι”€Ό€Θ°δθδ€΄Υ‰•M¥ι”€Ό€Θ°(€€€€€€€€€€€€€€€€€€€έ¥‘Ρ θΥ‰•M¥ι”°΅•¥΅ΠθΥ‰•M¥ι”°(€€€€€€€€€€€€€€€€€€€Ιΰθ€Δ°Ιδθ€Δ°(€€€€€€€€€€€€€€€€€€€™¥±°θΥ‰•½±½Θ°(€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θ€Ι‰„ ΘΤΤ°ΘΤΤ°ΘΤΤ°ΐΈΜΤ¤°(€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€ΐΈΤ°(€€€€€€€€€€€€€€€€€€€±…ΝΜθ€Ι•Ν½ΥΙ”µΥ‰”°(€€€€€€€€€€€€€€€€€€€™¥±Ρ•Θθ‘Ι½ΐµΝ΅…‘½ά ΐ€ΕΑΰ€ΕΑΰ€‘νΥ‰•M΅…‘½έτ¥€°(€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€τ(€€€€€€€τ(€€€τ((€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(€€€€ΌΌ5•Ι΅…ΉΡΜ(€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ((€€€‘Ι…έ5•Ι΅…ΉΡΜ ¤μ(€€€€€€€½ΉΝΠµ•Ι΅…ΉΡΙ½Υΐ€τΡ΅¥ΜΉΙ•…Ρ•Ι½Υΐ΅μ¥θ€µ•Ι΅…ΉΡΜµ±…ε•Θτ¤μ((€€€€€€€™½Θ€΅½ΉΝΠmµ•Ι΅%°µ•Ι΅t½=‰©•ΠΉ•ΉΡΙ¥•Μ΅5I!9QL¤¤μ(€€€€€€€€€€€¥€΅Ρ΅¥ΜΉΝΡ…Ρ”€µ•Ι Ήµ¥ΉA±…ε•ΙΜ€ψΡ΅¥ΜΉΝΡ…Ρ”ΉΉΥµA±…ε•ΙΜ¤½ΉΡ¥ΉΥ”μ((€€€€€€€€€€€½ΉΝΠ€τΡ΅¥ΜΉΙ•…Ρ•Ι½Υΐ΅μ(€€€€€€€€€€€€€€€±…ΝΜθ€µ•Ι΅…ΉΠµΙ½Υΐ°(€€€€€€€€€€€€€€€€‘…Ρ„µµ•Ι΅…ΉΠθµ•Ι΅%°(€€€€€€€€€€€€€€€ΡΙ…ΉΝ™½Ι΄θΡΙ…ΉΝ±…Ρ” ‘νµ•Ι Ήατ°€‘νµ•Ι Ήετ¥€(€€€€€€€€€€€τ¤μ((€€€€€€€€€€€½ΉΝΠά€τ€Ψΐμ(€€€€€€€€€€€½ΉΝΠ €τ€Μΐ€¬µ•Ι ΉΝ±½ΡΜ€¨€ΔΘμ((€€€€€€€€€€€€ΌΌ	…­Ι½ΥΉ(€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ι•Π°μ(€€€€€€€€€€€€€€€ΰθ€µά€Ό€Θ°δθ€΄ΔΘ°(€€€€€€€€€€€€€€€έ¥‘Ρ θά°΅•¥΅Πθ °(€€€€€€€€€€€€€€€±…ΝΜθ€µ•Ι΅…ΉΠµ‰°(€€€€€€€€€€€τ¤¤μ((€€€€€€€€€€€€ΌΌ9…µ”(€€€€€€€€€€€½ΉΝΠΉ…µ•Q•αΠ€τΡ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ρ•αΠ°μ(€€€€€€€€€€€€€€€ΰθ€ΐ°δθ€ΐ°(€€€€€€€€€€€€€€€±…ΝΜθ€µ•Ι΅…ΉΠµ±…‰•°°(€€€€€€€€€€€€€€€€‘…Ρ„µµ•Ι΅…ΉΠµ±…‰•°θµ•Ι΅%°(€€€€€€€€€€€€€€€€™½ΉΠµΝ¥ι”θ€ΰ°(€€€€€€€€€€€€€€€½Α…¥Ρδθ€ΐ°(€€€€€€€€€€€€€€€€…Ι¥„µ΅¥‘‘•Έθ€ΡΙΥ”°(€€€€€€€€€€€€€€€ΡΙ…ΉΝ±…Ρ”θ€ΉΌ°(€€€€€€€€€€€τ¤μ(€€€€€€€€€€€Ή…µ•Q•αΠΉΡ•αΡ½ΉΡ•ΉΠ€τµ•Ι ΉΉ…µ”μ(€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅Ή…µ•Q•αΠ¤μ((€€€€€€€€€€€€ΌΌ5•Ι΅…ΉΠΝ±½ΡΜ(€€€€€€€€€€€™½Θ€΅±•Π¤€τ€ΐμ¤€πµ•Ι ΉΝ±½ΡΜμ¤¬¬¤μ(€€€€€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ι•Π°μ(€€€€€€€€€€€€€€€€€€€ΰθ€΄Θΐ°δθ€Τ€¬¤€¨€ΔΠ°(€€€€€€€€€€€€€€€€€€€έ¥‘Ρ θ€Πΐ°΅•¥΅Πθ€ΔΔ°(€€€€€€€€€€€€€€€€€€€±…ΝΜθ€µ•Ι΅…ΉΠµΝ±½Π°(€€€€€€€€€€€€€€€τ¤¤μ((€€€€€€€€€€€€€€€¥€΅Ρ΅¥ΜΉΝΡ…Ρ”¤μ(€€€€€€€€€€€€€€€€€€€½ΉΝΠµ…Ρ΅¥ΉQ¥±•Μ€τΡ΅¥ΜΉΝΡ…Ρ”Ήµ•Ι΅…ΉΡQ¥±•ΜΉ™¥±Ρ•Θ΅Π€τψΠΉ±½…Ρ¥½Έ€τττµ•Ι΅%¤μ(€€€€€€€€€€€€€€€€€€€¥€΅µ…Ρ΅¥ΉQ¥±•Νm¥t¤μ(€€€€€€€€€€€€€€€€€€€€€€€½ΉΝΠµΠ€τµ…Ρ΅¥ΉQ¥±•Νm¥tμ(€€€€€€€€€€€€€€€€€€€€€€€½ΉΝΠ‰ΥεQ•αΠ€τΡ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ρ•αΠ°μ(€€€€€€€€€€€€€€€€€€€€€€€€€€€ΰθ€ΐ°δθ€ΔΜ€¬¤€¨€ΔΠ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€€Ρ•αΠµ…Ή΅½Θθ€µ¥‘‘±”°(€€€€€€€€€€€€€€€€€€€€€€€€€€€€™½ΉΠµΝ¥ι”θ€Ψ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€™¥±°θµΠΉ‰½ΉΥΝ±…¥µ•€ό€ΤΤΤ€θ€ΰάΜΜΜ°(€€€€€€€€€€€€€€€€€€€€€€€τ¤μ(€€€€€€€€€€€€€€€€€€€€€€€‰ΥεQ•αΠΉΡ•αΡ½ΉΡ•ΉΠ€τµΠΉ‰ΥεΜ€ό(€€€€€€€€€€€€€€€€€€€€€€€€€€€%9UMQIe}%MA1emµΠΉ‰ΥεΝtΉΝ΅½ΙΡ9…µ”€θ(€€€€€€€€€€€€€€€€€€€€€€€€€€€€Ήδμ(€€€€€€€€€€€€€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅‰ΥεQ•αΠ¤μ((€€€€€€€€€€€€€€€€€€€€€€€¥€΅µΠΉ΅…Ν	••Θ¤μ(€€€€€€€€€€€€€€€€€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ¥Ι±”°μ(€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ΰθ€ΔΠ°δθ€ΔΔ€¬¤€¨€ΔΠ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€Θθ€Μ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€™¥±°θ€ε„ΰΡ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θ€„ΐΰΐΜΐ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€ΐΈΤ°(€€€€€€€€€€€€€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€€€€€€€€€€€€€τ(€€€€€€€€€€€€€€€€€€€τ(€€€€€€€€€€€€€€€τ(€€€€€€€€€€€τ((€€€€€€€€€€€€ΌΌ	½ΉΥΜ¥Ή‘¥…Ρ½Θ(€€€€€€€€€€€½ΉΝΠ‰½ΉΥΝQ•αΠ€τΡ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ρ•αΠ°μ(€€€€€€€€€€€€€€€ΰθ€ΐ°δθ €΄€ΰ°(€€€€€€€€€€€€€€€€Ρ•αΠµ…Ή΅½Θθ€µ¥‘‘±”°(€€€€€€€€€€€€€€€€™½ΉΠµΝ¥ι”θ€Ψ°(€€€€€€€€€€€€€€€™¥±°θ€ΰΰΰ°(€€€€€€€€€€€τ¤μ(€€€€€€€€€€€±•Π‰½ΉΥΝMΡΘ€τ€μ(€€€€€€€€€€€¥€΅µ•Ι Ή‰½ΉΥΝQεΑ”€τττ€Ωΐ¤‰½ΉΥΝMΡΘ€τ€¬‘νµ•Ι Ή‰½ΉΥΝµ½ΥΉΡτYA€μ(€€€€€€€€€€€•±Ν”¥€΅µ•Ι Ή‰½ΉΥΝQεΑ”€τττ€µ½Ή•δ¤‰½ΉΥΝMΡΘ€τ€―
+‘νµ•Ι Ή‰½ΉΥΝµ½ΥΉΡυ€μ(€€€€€€€€€€€•±Ν”¥€΅µ•Ι Ή‰½ΉΥΝQεΑ”€τττ€¥Ή½µ”¤‰½ΉΥΝMΡΘ€τ€¬‘νµ•Ι Ή‰½ΉΥΝµ½ΥΉΡτ%Ή€μ(€€€€€€€€€€€•±Ν”¥€΅µ•Ι Ή‰½ΉΥΝQεΑ”€τττ€‘•Ω•±½ΐ¤‰½ΉΥΝMΡΘ€τΙ•”•Ω€μ(€€€€€€€€€€€‰½ΉΥΝQ•αΠΉΡ•αΡ½ΉΡ•ΉΠ€τ‰½ΉΥΝMΡΘμ(€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅‰½ΉΥΝQ•αΠ¤μ((€€€€€€€€€€€µ•Ι΅…ΉΡΙ½ΥΐΉ…ΑΑ•Ή‘΅¥±΅¤μ(€€€€€€€τ((€€€€€€€Ρ΅¥ΜΉΝΩΉ…ΑΑ•Ή‘΅¥±΅µ•Ι΅…ΉΡΙ½Υΐ¤μ(€€€€€€€Ρ΅¥ΜΉΝεΉ5•Ι΅…ΉΡ1…‰•±Μ ¤μ(€€€τ((€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(€€€€ΌΌ	Ι•έ•Ιδ…ΙµΜ(€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ((€€€‘Ι…έ	Ι•έ•Ιε…ΙµΜ ¤μ(€€€€€€€½ΉΝΠ™…ΙµΙ½Υΐ€τΡ΅¥ΜΉΙ•…Ρ•Ι½Υΐ΅μ¥θ€‰Ι•έ•Ιδµ™…ΙµΜµ±…ε•Θτ¤μ((€€€€€€€™½Θ€΅½ΉΝΠm™…Ιµ%°™…Ιµt½=‰©•ΠΉ•ΉΡΙ¥•Μ΅	I]Ie}I5L¤¤μ(€€€€€€€€€€€½ΉΝΠ€τΡ΅¥ΜΉΙ•…Ρ•Ι½Υΐ΅μ(€€€€€€€€€€€€€€€±…ΝΜθ€‰Ι•έ•Ιδµ™…Ι΄°(€€€€€€€€€€€€€€€€‘…Ρ„µ™…Ι΄θ™…Ιµ%°(€€€€€€€€€€€€€€€ΡΙ…ΉΝ™½Ι΄θΡΙ…ΉΝ±…Ρ” ‘ν™…Ι΄Ήατ°€‘ν™…Ι΄Ήετ¥€(€€€€€€€€€€€τ¤μ((€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ι•Π°μ(€€€€€€€€€€€€€€€ΰθ€΄ΔΠ°δθ€΄ΔΠ°(€€€€€€€€€€€€€€€έ¥‘Ρ θ€Θΰ°΅•¥΅Πθ€Θΰ°(€€€€€€€€€€€€€€€±…ΝΜθ€‰Ι•έ•Ιδµ™…Ι΄µ‰°(€€€€€€€€€€€τ¤¤μ((€€€€€€€€€€€½ΉΝΠ‰Υ¥±ΡQ¥±”€τΡ΅¥ΜΉΝΡ…Ρ”€όΡ΅¥ΜΉΝΡ…Ρ”Ή‰Ι•έ•Ιε…ΙµQ¥±•Νm™…Ιµ%‘t€θΉΥ±°μ(€€€€€€€€€€€¥€΅‰Υ¥±ΡQ¥±”¤μ(€€€€€€€€€€€€€€€Ρ΅¥ΜΉ‘Ι…έ	Υ¥±Ρ%Ή‘ΥΝΡΙεQ¥±”΅°€΄ΔΔ°€΄ΔΔ°‰Υ¥±ΡQ¥±”¤μ(€€€€€€€€€€€τ•±Ν”μ(€€€€€€€€€€€€€€€€ΌΌM΅½ά‰Ι•έ•Ιδ¥½Έ(€€€€€€€€€€€€€€€½ΉΝΠ¥½Ή€τΡ΅¥ΜΉ•Ρ%Ή‘ΥΝΡΙε%½Έ΅%9UMQIe}QeALΉ	I]Id°€ΔΠ¤μ(€€€€€€€€€€€€€€€¥½ΉΉΝ•ΡΡΡΙ¥‰ΥΡ” ΡΙ…ΉΝ™½Ι΄°€ΡΙ…ΉΝ±…Ρ” ΐ°€ΐ¤¤μ(€€€€€€€€€€€€€€€¥½ΉΉΝ•ΡΡΡΙ¥‰ΥΡ” ½Α…¥Ρδ°€ΐΈΠ¤μ(€€€€€€€€€€€€€€€Ή…ΑΑ•Ή‘΅¥±΅¥½Ή¤μ(€€€€€€€€€€€τ((€€€€€€€€€€€™…ΙµΙ½ΥΐΉ…ΑΑ•Ή‘΅¥±΅¤μ(€€€€€€€τ((€€€€€€€Ρ΅¥ΜΉΝΩΉ…ΑΑ•Ή‘΅¥±΅™…ΙµΙ½Υΐ¤μ(€€€τ((€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(€€€€ΌΌ	Υ¥±Π1¥Ή­Μέ¥Ρ •Ή΅…Ή•ΝΡε±¥Ή(€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ((€€€‘Ι…έ	Υ¥±Ρ1¥Ή­Μ ¤μ(€€€€€€€½ΉΝΠ±¥Ή­Ι½Υΐ€τΡ΅¥ΜΉΙ•…Ρ•Ι½Υΐ΅μ¥θ€‰Υ¥±Πµ±¥Ή­Μµ±…ε•Θτ¤μ((€€€€€€€¥€ …Ρ΅¥ΜΉΝΡ…Ρ”¤Ι•ΡΥΙΈμ((€€€€€€€™½Θ€΅½ΉΝΠm½ΉΉ%°±¥Ή­t½=‰©•ΠΉ•ΉΡΙ¥•Μ΅Ρ΅¥ΜΉΝΡ…Ρ”Ή‰½…Ι‘1¥Ή­Μ¤¤μ(€€€€€€€€€€€½ΉΝΠ½ΉΈ€τ=99Q%=9LΉ™¥Ή΅€τψΉ¥€τττ½ΉΉ%¤μ(€€€€€€€€€€€¥€ …½ΉΈ¤½ΉΡ¥ΉΥ”μ((€€€€€€€€€€€½ΉΝΠΑ½ΜΔ€τ•Ρ1½…Ρ¥½ΉA½Ν¥Ρ¥½Έ΅½ΉΈΉ¥Ρ¥•ΝlΑt¤μ(€€€€€€€€€€€½ΉΝΠΑ½ΜΘ€τ•Ρ1½…Ρ¥½ΉA½Ν¥Ρ¥½Έ΅½ΉΈΉ¥Ρ¥•ΝlΕt¤μ(€€€€€€€€€€€¥€ …Α½ΜΔρπ€…Α½ΜΘ¤½ΉΡ¥ΉΥ”μ((€€€€€€€€€€€½ΉΝΠΑ±…ε•Ι½±½Θ€τΡ΅¥ΜΉΝΡ…Ρ”ΉΑ±…ε•ΙΝm±¥Ή¬ΉΑ±…ε•Ι%‘tΉ½±½Θμ((€€€€€€€€€€€½ΉΝΠ‘Ι…έ	Υ¥±ΡM•µ•ΉΠ€τ€΅Ν•¤€τψμ(€€€€€€€€€€€€€€€¥€΅±¥Ή¬ΉΡεΑ”€τττ€…Ή…°¤μ(€€€€€€€€€€€€€€€€€€€€ΌΌ	Υ¥±Π…Ή…°θΝ½±¥Ρ΅¥¬‰±Υ”έ¥Ρ Α±…ε•Θ½±½Θ½Ω•Ι±…δ(€€€€€€€€€€€€€€€€€€€€ΌΌ=ΥΡ•Θ‰±Υ”±½ά€΅έ…Ρ•Θ‰…Ν”¤(€€€€€€€€€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ±¥Ή”°μ(€€€€€€€€€€€€€€€€€€€€€€€€ΈΈΉΝ•°(€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θ€ΠΠδε°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€Δΐ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ±¥Ή•…ΐθ€Ι½ΥΉ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ½Α…¥Ρδθ€ΐΈΜ°(€€€€€€€€€€€€€€€€€€€€€€€±…ΝΜθ€½ΉΉ•Ρ¥½Έµ±¥Ή”‰Υ¥±Π°(€€€€€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€€€€€€€€€€ΌΌ5¥‰±Υ”±…ε•Θ(€€€€€€€€€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ±¥Ή”°μ(€€€€€€€€€€€€€€€€€€€€€€€€ΈΈΉΝ•°(€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θ€ΜΜΰα‰°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€Ψ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ±¥Ή•…ΐθ€Ι½ΥΉ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ½Α…¥Ρδθ€ΐΈΤ°(€€€€€€€€€€€€€€€€€€€€€€€±…ΝΜθ€½ΉΉ•Ρ¥½Έµ±¥Ή”‰Υ¥±Π°(€€€€€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€€€€€€€€€€ΌΌA±…ε•Θ½±½Θ½Ω•Ι±…δƒP‰Ι¥΅Π•ΉΡ•Θ(€€€€€€€€€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ±¥Ή”°μ(€€€€€€€€€€€€€€€€€€€€€€€€ΈΈΉΝ•°(€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θΑ±…ε•Ι½±½Θ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€Μ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ±¥Ή•…ΐθ€Ι½ΥΉ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ½Α…¥Ρδθ€ΐΈΰΤ°(€€€€€€€€€€€€€€€€€€€€€€€±…ΝΜθ€½ΉΉ•Ρ¥½Έµ±¥Ή”‰Υ¥±Π°(€€€€€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€€€€€τ•±Ν”μ(€€€€€€€€€€€€€€€€€€€€ΌΌ	Υ¥±ΠΙ…¥°θ‘…Ι¬έ¥Ρ Α±…ε•Θ½±½Θ°έ¥Ρ Ρ¥”Α…ΡΡ•ΙΈ(€€€€€€€€€€€€€€€€€€€€ΌΌ=ΥΡ•Θ‘…Ι¬‰…±±…ΝΠ‰•(€€€€€€€€€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ±¥Ή”°μ(€€€€€€€€€€€€€€€€€€€€€€€€ΈΈΉΝ•°(€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θ€ΜΜΜ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€ά°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ±¥Ή•…ΐθ€Ι½ΥΉ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ½Α…¥Ρδθ€ΐΈά°(€€€€€€€€€€€€€€€€€€€€€€€±…ΝΜθ€½ΉΉ•Ρ¥½Έµ±¥Ή”‰Υ¥±Π°(€€€€€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€€€€€€€€€€ΌΌA±…ε•Θ½±½ΘΙ…¥°±¥Ή”(€€€€€€€€€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ±¥Ή”°μ(€€€€€€€€€€€€€€€€€€€€€€€€ΈΈΉΝ•°(€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θΑ±…ε•Ι½±½Θ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€Π°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ±¥Ή•…ΐθ€Ι½ΥΉ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ½Α…¥Ρδθ€ΐΈάΤ°(€€€€€€€€€€€€€€€€€€€€€€€±…ΝΜθ€½ΉΉ•Ρ¥½Έµ±¥Ή”‰Υ¥±Π°(€€€€€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€€€€€€€€€€ΌΌQ¥”½Ν±••Α•ΘΑ…ΡΡ•ΙΈ½Ω•ΘΑ±…ε•Θ½±½Θ(€€€€€€€€€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ±¥Ή”°μ(€€€€€€€€€€€€€€€€€€€€€€€€ΈΈΉΝ•°(€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”θ€Ι‰„ ΐ°ΐ°ΐ°ΐΈΤ¤°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€Μ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ±¥Ή•…ΐθ€‰ΥΡΠ°(€€€€€€€€€€€€€€€€€€€€€€€€ΝΡΙ½­”µ‘…Ν΅…ΙΙ…δθ€Μ€ΰ°(€€€€€€€€€€€€€€€€€€€€€€€±…ΝΜθ€½ΉΉ•Ρ¥½Έµ±¥Ή”‰Υ¥±Π°(€€€€€€€€€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€€€€€τ(€€€€€€€€€€€τμ((€€€€€€€€€€€¥€΅½ΉΈΉΩ¥…	Ι•έ•Ιδ¤μ(€€€€€€€€€€€€€€€½ΉΝΠ‰Ι•έA½Μ€τ•Ρ1½…Ρ¥½ΉA½Ν¥Ρ¥½Έ΅½ΉΈΉΩ¥…	Ι•έ•Ιδ¤μ(€€€€€€€€€€€€€€€¥€΅‰Ι•έA½Μ¤μ(€€€€€€€€€€€€€€€€€€€‘Ι…έ	Υ¥±ΡM•µ•ΉΠ΅μΰΔθΑ½ΜΔΉΰ°δΔθΑ½ΜΔΉδ°ΰΘθ‰Ι•έA½ΜΉΰ°δΘθ‰Ι•έA½ΜΉδτ¤μ(€€€€€€€€€€€€€€€€€€€‘Ι…έ	Υ¥±ΡM•µ•ΉΠ΅μΰΔθ‰Ι•έA½ΜΉΰ°δΔθ‰Ι•έA½ΜΉδ°ΰΘθΑ½ΜΘΉΰ°δΘθΑ½ΜΘΉδτ¤μ(€€€€€€€€€€€€€€€τ(€€€€€€€€€€€τ•±Ν”μ(€€€€€€€€€€€€€€€‘Ι…έ	Υ¥±ΡM•µ•ΉΠ΅μΰΔθΑ½ΜΔΉΰ°δΔθΑ½ΜΔΉδ°ΰΘθΑ½ΜΘΉΰ°δΘθΑ½ΜΘΉδτ¤μ(€€€€€€€€€€€τ((€€€€€€€€€€€€ΌΌ1¥Ή¬ΡεΑ”¥Ή‘¥…Ρ½Θ…Πµ¥‘Α½¥ΉΠ(€€€€€€€€€€€½ΉΝΠµ¥‘`€τ€΅Α½ΜΔΉΰ€¬Α½ΜΘΉΰ¤€Ό€Θμ(€€€€€€€€€€€½ΉΝΠµ¥‘d€τ€΅Α½ΜΔΉδ€¬Α½ΜΘΉδ¤€Ό€Θμ((€€€€€€€€€€€€ΌΌMµ…±°½±½Ι•¥Ι±”έ¥Ρ ΡεΑ”¥Ή‘¥…Ρ½Θ(€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅Ρ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ ¥Ι±”°μ(€€€€€€€€€€€€€€€ΰθµ¥‘`°δθµ¥‘d°Θθ€Ψ°(€€€€€€€€€€€€€€€™¥±°θΑ±…ε•Ι½±½Θ°(€€€€€€€€€€€€€€€ΝΡΙ½­”θ€Ι‰„ ΘΤΤ°ΘΤΤ°ΘΤΤ°ΐΈΜ¤°(€€€€€€€€€€€€€€€€ΝΡΙ½­”µέ¥‘Ρ θ€ΐΈΤ°(€€€€€€€€€€€τ¤¤μ(€€€€€€€€€€€½ΉΝΠΡεΑ•%½Έ€τΡ΅¥ΜΉΙ•…Ρ•±•µ•ΉΠ Ρ•αΠ°μ(€€€€€€€€€€€€€€€ΰθµ¥‘`°δθµ¥‘d€¬€Μ°(€€€€€€€€€€€€€€€€Ρ•αΠµ…Ή΅½Θθ€µ¥‘‘±”°(€€€€€€€€€€€€€€€€™½ΉΠµΝ¥ι”θ€ά°(€€€€€€€€€€€€€€€™¥±°θ€έ΅¥Ρ”°(€€€€€€€€€€€€€€€€Α½¥ΉΡ•Θµ•Ω•ΉΡΜθ€Ή½Ή”°(€€€€€€€€€€€τ¤μ(€€€€€€€€€€€ΡεΑ•%½ΈΉΡ•αΡ½ΉΡ•ΉΠ€τ±¥Ή¬ΉΡεΑ”€τττ€…Ή…°€ό€ψ€θ€μ(€€€€€€€€€€€±¥Ή­Ι½ΥΐΉ…ΑΑ•Ή‘΅¥±΅ΡεΑ•%½Έ¤μ(€€€€€€€τ((€€€€€€€Ρ΅¥ΜΉΝΩΉ…ΑΑ•Ή‘΅¥±΅±¥Ή­Ι½Υΐ¤μ(€€€τ((€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(€€€€ΌΌ!¥΅±¥΅Ρ¥Ή™½ΘΩ…±¥Α±…•µ•ΉΡΜ(€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ((€€€΅¥΅±¥΅ΡM±½ΡΜ΅Ω…±¥‘M±½ΡΜ¤μ(€€€€€€€Ρ΅¥ΜΉ±•…Ι!¥΅±¥΅ΡΜ ¤μ(€€€€€€€™½Θ€΅½ΉΝΠΝ±½Π½Ω…±¥‘M±½ΡΜ¤μ(€€€€€€€€€€€½ΉΝΠ•°€τΡ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ (€€€€€€€€€€€€€€€€Ή¥Ή‘ΥΝΡΙδµΝ±½Ρm‘…Ρ„µ¥Ρδτ‘νΝ±½ΠΉ¥Ρε%‘τ‰um‘…Ρ„µΝ±½Πτ‘νΝ±½ΠΉΝ±½Ρ%Ή‘•ατ‰u€(€€€€€€€€€€€€¤μ(€€€€€€€€€€€¥€΅•°¤μ(€€€€€€€€€€€€€€€•°Ή±…ΝΝ1¥ΝΠΉ…‘ ΅¥΅±¥΅ΠµΝ±½Π¤μ(€€€€€€€€€€€τ(€€€€€€€τ(€€€τ((€€€΅¥΅±¥΅Ρ½ΉΉ•Ρ¥½ΉΜ΅Ω…±¥‘½ΉΉ•Ρ¥½ΉΜ¤μ(€€€€€€€Ρ΅¥ΜΉ±•…Ι!¥΅±¥΅ΡΜ ¤μ(€€€€€€€™½Θ€΅½ΉΝΠ½ΉΉ%½Ω…±¥‘½ΉΉ•Ρ¥½ΉΜ¤μ(€€€€€€€€€€€½ΉΝΠ•±Μ€τΡ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Ι±°΅m‘…Ρ„µ½ΉΉ•Ρ¥½Έτ‘ν½ΉΉ%‘τ‰u€¤μ(€€€€€€€€€€€•±ΜΉ™½Ι… ΅•°€τψ•°Ή±…ΝΝ1¥ΝΠΉ…‘ ΅¥΅±¥΅Π¤¤μ(€€€€€€€τ(€€€τ((€€€±•…Ι!¥΅±¥΅ΡΜ ¤μ(€€€€€€€Ρ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Ι±° Ή΅¥΅±¥΅ΠµΝ±½Π¤Ή™½Ι… ΅•°€τψ(€€€€€€€€€€€•°Ή±…ΝΝ1¥ΝΠΉΙ•µ½Ω” ΅¥΅±¥΅ΠµΝ±½Π¤¤μ(€€€€€€€Ρ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Ι±° Ή΅¥΅±¥΅Π¤Ή™½Ι… ΅•°€τψ(€€€€€€€€€€€•°Ή±…ΝΝ1¥ΝΠΉΙ•µ½Ω” ΅¥΅±¥΅Π¤¤μ(€€€τ((€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(€€€€ΌΌUΑ‘…Ρ”µ•Ρ΅½‘Μ(€€€€ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ((€€€ΥΑ‘…Ρ•%Ή‘ΥΝΡΙεM±½ΡΜ ¤μ(€€€€€€€½ΉΝΠ½±‘¥Ρ¥•Μ€τΡ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ ¥Ρ¥•Μµ±…ε•Θ¤μ(€€€€€€€¥€΅½±‘¥Ρ¥•Μ¤½±‘¥Ρ¥•ΜΉΙ•µ½Ω” ¤μ(€€€€€€€Ρ΅¥ΜΉ‘Ι…έ¥Ρ¥•Μ ¤μ(€€€τ((€€€ΥΑ‘…Ρ•1¥Ή­Μ ¤μ(€€€€€€€½ΉΝΠ½±‘1¥Ή­Μ€τΡ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ ‰Υ¥±Πµ±¥Ή­Μµ±…ε•Θ¤μ(€€€€€€€¥€΅½±‘1¥Ή­Μ¤½±‘1¥Ή­ΜΉΙ•µ½Ω” ¤μ(€€€€€€€Ρ΅¥ΜΉ‘Ι…έ	Υ¥±Ρ1¥Ή­Μ ¤μ(€€€τ((€€€ΥΑ‘…Ρ•5•Ι΅…ΉΡ	••Θ ¤μ(€€€€€€€½ΉΝΠ½±‘5•Ι΅…ΉΡΜ€τΡ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ µ•Ι΅…ΉΡΜµ±…ε•Θ¤μ(€€€€€€€¥€΅½±‘5•Ι΅…ΉΡΜ¤½±‘5•Ι΅…ΉΡΜΉΙ•µ½Ω” ¤μ(€€€€€€€Ρ΅¥ΜΉ‘Ι…έ5•Ι΅…ΉΡΜ ¤μ(€€€τ((€€€™Υ±±UΑ‘…Ρ”΅…µ•MΡ…Ρ”¤μ(€€€€€€€Ρ΅¥ΜΉΝΡ…Ρ”€τ…µ•MΡ…Ρ”μ(€€€€€€€€ΌΌI•µ½Ω”…±°‘εΉ…µ¥±…ε•ΙΜ™¥ΙΝΠ°Ρ΅•ΈΙ”µ…‘¥ΈΡ΅”½ΙΙ•Π‘Ι…ά½Ι‘•ΘΝΌ(€€€€€€€€ΌΌΡ΅…Π‰Υ¥±Π±¥Ή­Μ…±έ…εΜΙ•Ή‘•Θ½ΈΡ½ΐ½¥Ρ¥•Μ°µ•Ι΅…ΉΡΜ°…Ή‰Ι•έ•Ιδ™…ΙµΜΈ(€€€€€€€Ρ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ ‰Ι•έ•Ιδµ™…ΙµΜµ±…ε•Θ¤όΉΙ•µ½Ω” ¤μ(€€€€€€€Ρ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ µ•Ι΅…ΉΡΜµ±…ε•Θ¤όΉΙ•µ½Ω” ¤μ(€€€€€€€Ρ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ ¥Ρ¥•Μµ±…ε•Θ¤όΉΙ•µ½Ω” ¤μ(€€€€€€€Ρ΅¥ΜΉΝΩΉΕΥ•ΙεM•±•Ρ½Θ ‰Υ¥±Πµ±¥Ή­Μµ±…ε•Θ¤όΉΙ•µ½Ω” ¤μ((€€€€€€€Ρ΅¥ΜΉ‘Ι…έ	Ι•έ•Ιε…ΙµΜ ¤μ(€€€€€€€Ρ΅¥ΜΉ‘Ι…έ5•Ι΅…ΉΡΜ ¤μ(€€€€€€€Ρ΅¥ΜΉ‘Ι…έ¥Ρ¥•Μ ¤μ(€€€€€€€Ρ΅¥ΜΉ‘Ι…έ	Υ¥±Ρ1¥Ή­Μ ¤μ(€€€τ)τ(
