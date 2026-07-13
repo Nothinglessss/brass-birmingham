@@ -534,6 +534,26 @@ h1, h2, h3 {
     z-index: 2;
 }
 
+#city-label-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.city-label-html {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    color: #f0e0c0;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
 /* Right Panel */
 #right-panel {
     width: 240px;
