@@ -8,6 +8,21 @@ let boardRenderer = null;
 let uiManager = null;
 
 // ============================================================================
+// Browser Navigation Protection
+// ============================================================================
+
+function hasActiveGameInProgress() {
+    return gameState !== null && !gameState.gameOver;
+}
+
+function warnBeforeLeavingActiveGame(event) {
+    if (!hasActiveGameInProgress()) return;
+
+    event.preventDefault();
+    event.returnValue = '';
+}
+
+// ============================================================================
 // Setup Screen
 // ============================================================================
 
@@ -91,3 +106,5 @@ function startGame(numPlayers, playerNames) {
 document.addEventListener('DOMContentLoaded', () => {
     initSetup();
 });
+
+window.addEventListener('beforeunload', warnBeforeLeavingActiveGame);
