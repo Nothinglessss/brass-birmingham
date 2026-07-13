@@ -557,6 +557,25 @@ class UIManager {
         this.showBuildModal(playerId, targets);
     }
 
+    getBuildFlipRequirementText(industryType, tileData) {
+        if (isResourceIndustry(industryType)) {
+            return `Flip: ${tileData.resourceCubes || 0} ${this.getBuildFlipResourceName(industryType)}`;
+        }
+        if (isSellableIndustry(industryType)) {
+            return `Flip: ${tileData.beersToSell || 0} beer`;
+        }
+        return '';
+    }
+
+    getBuildFlipResourceName(industryType) {
+        switch (industryType) {
+            case INDUSTRY_TYPES.COAL_MINE: return 'coal';
+            case INDUSTRY_TYPES.IRON_WORKS: return 'iron';
+            case INDUSTRY_TYPES.BREWERY: return 'beer';
+            default: return 'resources';
+        }
+    }
+
     showBuildModal(playerId, targets) {
         const byCity = {};
         for (const t of targets) {
@@ -569,6 +588,7 @@ class UIManager {
             const cityName = CITIES[cityId].name;
             for (const target of cityTargets) {
                 const display = INDUSTRY_DISPLAY[target.industryType];
+                const flipRequirement = this.getBuildFlipRequirementText(target.industryType, target.tileData);
                 html += `
                     <div class="choice-item" data-city="${target.cityId}"
                          data-slot="${target.slotIndex}" data-type="${target.industryType}">
@@ -577,9 +597,12 @@ class UIManager {
                             <div class="choice-item-name">${display.name} Lv${target.tileData.level}</div>
                             <div class="choice-item-detail">${cityName} (Slot ${target.slotIndex + 1})</div>
                         </div>
-                        <div class="choice-item-cost">£${target.cost.total}
-                            ${target.cost.coal > 0 ? ` + ${target.cost.coal} coal` : ''}
-                            ${target.cost.iron > 0 ? ` + ${target.cost.iron} iron` : ''}
+                        <div class="choice-item-cost">
+                            <div class="choice-item-build-cost">£${target.cost.total}
+                                ${target.cost.coal > 0 ? ` + ${target.cost.coal} coal` : ''}
+                                ${target.cost.iron > 0 ? ` + ${target.cost.iron} iron` : ''}
+                            </div>
+                            ${flipRequirement ? `<div class="choice-item-flip">${flipRequirement}</div>` : ''}
                         </div>
                     </div>
                 `;
