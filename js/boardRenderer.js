@@ -46,6 +46,51 @@ class BoardRenderer {
         return this.createElement('g', attrs);
     }
 
+    shadeHexColor(hex, amount) {
+        const match = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+        if (!match) return hex;
+
+        const target = amount < 0 ? 0 : 255;
+        const weight = Math.abs(amount);
+        const channels = match[1].match(/.{2}/g).map(part => {
+            const value = parseInt(part, 16);
+            const shaded = Math.round(value + (target - value) * weight);
+            return Math.max(0, Math.min(255, shaded)).toString(16).padStart(2, '0');
+        });
+
+        return `#${channels.join('')}`;
+    }
+
+    getPlayerTilePalette(playerColor) {
+        return {
+            builtFill: this.shadeHexColor(playerColor, -0.26),
+            builtStroke: this.shadeHexColor(playerColor, 0.18),
+            flippedFill: this.shadeHexColor(playerColor, 0.38),
+            flippedStroke: this.shadeHexColor(playerColor, -0.18),
+            flippedText: '#211714',
+        };
+    }
+
+    drawBottomRightTileBadge(parent, cx, cy, value) {
+        parent.appendChild(this.createElement('circle', {
+            cx, cy, r: 6,
+            fill: '#c9a84c',
+            stroke: '#8a6020',
+            'stroke-width': 1,
+            filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))',
+        }));
+
+        const text = this.createElement('text', {
+            x: cx, y: cy + 3,
+            'text-anchor': 'middle',
+            'font-size': '7',
+            fill: '#1a1510',
+            'font-weight': '800',
+        });
+        text.textContent = value;
+        parent.appendChild(text);
+    }
+
     // ========================================================================
     // SVG Industry Icons
     // ========================================================================
@@ -591,6 +636,7 @@ class BoardRenderer {
         const s = this.citySlotSize;
         const display = INDUSTRY_DISPLAY[tile.type];
         const playerColor = this.state.players[tile.playerId].color;
+        const palette = this.getPlayerTilePalette(playerColor);
 
         // Outer glow for player color — makes tiles visually prominent
         parent.appendChild(this.createElement('rect', {
@@ -608,10 +654,8 @@ class BoardRenderer {
         parent.appendChild(this.createElement('rect', {
             x, y, width: s, height: s,
             rx: 4, ry: 4,
-            fill: tile.flipped
-                ? 'url(#tileFlippedBg)'
-                : playerColor,
-            stroke: tile.flipped ? '#5aaa5a' : 'rgba(255,255,255,0.25)',
+            fill: tile.flipped ? palette.flippedFill : palette.builtFill,
+            stroke: tile.flipped ? palette.flippedStroke : palette.builtStroke,
             'stroke-width': tile.flipped ? 1.5 : 1,
             opacity: tile.flipped ? 0.92 : 1,
             class: 'built-tile' + (tile.flipped ? ' flipped' : ''),
@@ -629,7 +673,7 @@ class BoardRenderer {
         const levelText = this.createElement('text', {
             x: x + 4, y: y + 10,
             'font-size': '9',
-            fill: tile.flipped ? '#9aea9a' : 'white',
+            fill: tile.flipped ? palette.flippedText : 'white',
             'font-weight': '800',
             'font-family': 'Cinzel, serif',
         });
@@ -646,47 +690,12 @@ class BoardRenderer {
 
         // VP badge if flipped — bigger and clearer
         if (tile.flipped) {
-            parent.appendChild(this.createElement('circle', {
-                cx: x + s - 5, cy: y + s - 5, r: 6,
-                fill: '#c9a84c',
-                stroke: '#8a6020',
-                'stroke-width': 1,
-                filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))',
-            }));
-            const vpText = this.createElement('text', {
-                x: x + s - 5, y: y + s - 2,
-                'text-anchor': 'middle',
-                'font-size': '7',
-                fill: '#1a1510',
-                'font-weight': '800',
-            });
-            vpText.textContent = tile.tileData.vp;
-            parent.appendChild(vpText);
+            this.drawBottomRightTileBadge(parent, x + s - 5, y + s - 5, tile.tileData.vp);
         }
 
-        // Resource cubes
+        // Resource count badge
         if (!tile.flipped && tile.resourceCubes > 0) {
-            const cubeSize = 5;
-            for (let i = 0; i < tile.resourceCubes; i++) {
-                const cx = x + s - 5 - (i % 3) * 6;
-                const cy = y + s - 5 - Math.floor(i / 3) * 6;
-                let cubeColor = '#666';
-                let cubeShadow = '#333';
-                if (tile.type === INDUSTRY_TYPES.COAL_MINE) { cubeColor = '#3a3a3a'; cubeShadow = '#111'; }
-                else if (tile.type === INDUSTRY_TYPES.IRON_WORKS) { cubeColor = '#e08020'; cubeShadow = '#904800'; }
-                else if (tile.type === INDUSTRY_TYPES.BREWERY) { cubeColor = '#d4b840'; cubeShadow = '#907010'; }
-
-                parent.appendChild(this.createElement('rect', {
-                    x: cx - cubeSize / 2, y: cy - cubeSize / 2,
-                    width: cubeSize, height: cubeSize,
-                    rx: 1, ry: 1,
-                    fill: cubeColor,
-                    stroke: 'rgba(255,255,255,0.35)',
-                    'stroke-width': 0.5,
-                    class: 'resource-cube',
-                    filter: `drop-shadow(0 1px 1px ${cubeShadow})`,
-                }));
-            }
+            this.drawBottomRightTileBadge(parent, x + s - 5, y + s - 5, tile.resourceCubes);
         }
     }
 
