@@ -554,6 +554,17 @@ h1, h2, h3 {
     pointer-events: none;
 }
 
+.merchant-label-html {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    color: var(--accent-copper);
+    font-family: 'Cinzel', serif;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
 /* Right Panel */
 #right-panel {
     width: 300px;

@@ -101,7 +101,7 @@ const gameData = fs.readFileSync(path.join(repoRoot, 'js', 'gameData.js'), 'utf8
 const boardRenderer = fs.readFileSync(path.join(repoRoot, 'js', 'boardRenderer.js'), 'utf8');
 vm.runInContext(
     `${graphSource}\n${gameData}\n${boardRenderer}\n` +
-    'globalThis.BoardRenderer = BoardRenderer; globalThis.CITIES = CITIES;',
+    'globalThis.BoardRenderer = BoardRenderer; globalThis.CITIES = CITIES; globalThis.MERCHANTS = MERCHANTS;',
     context
 );
 
@@ -132,4 +132,30 @@ assert.equal(overlay.querySelectorAll('.city-label-html').length, Object.keys(co
 assert.equal(overlay.querySelector('[data-city="belper"]').textContent, 'Translated Belper',
     'redrawing cities must preserve text mutated by Google Translate');
 
-console.log('city label translation tests passed');
+renderer.drawMerchants();
+
+const merchantAnchors = svg.querySelectorAll('.merchant-label');
+const merchantLabels = overlay.querySelectorAll('.merchant-label-html');
+assert.equal(merchantLabels.length, Object.keys(context.MERCHANTS).length,
+    'each visible SVG merchant should expose one ordinary HTML label');
+assert.equal(merchantAnchors[0].attrs.opacity, '0', 'the duplicate SVG merchant text should be visually hidden');
+assert.equal(merchantAnchors[0].attrs['aria-hidden'], 'true',
+    'the duplicate SVG merchant text should be hidden from accessibility');
+assert.equal(merchantAnchors[0].attrs.translate, 'no',
+    'Google Translate should ignore the duplicate SVG merchant text');
+assert.equal(merchantLabels[0].style.pointerEvents, 'none',
+    'HTML merchant labels must not intercept board interaction');
+
+const merchantId = Object.keys(context.MERCHANTS)[0];
+const merchantLabel = overlay.querySelector(`[data-merchant="${merchantId}"]`);
+assert.ok(merchantLabel, 'the first merchant should have an HTML label');
+merchantLabel.textContent = 'Translated Merchant';
+
+renderer.updateMerchantBeer();
+
+assert.equal(overlay.querySelectorAll('.merchant-label-html').length, Object.keys(context.MERCHANTS).length,
+    'redrawing merchants should not duplicate HTML labels');
+assert.equal(overlay.querySelector(`[data-merchant="${merchantId}"]`).textContent, 'Translated Merchant',
+    'redrawing merchants must preserve text mutated by Google Translate');
+
+console.log('location label translation tests passed');
