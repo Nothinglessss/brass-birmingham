@@ -77,6 +77,7 @@ class GameState {
             colorName: PLAYER_NAMES[index],
             money: INITIAL_MONEY_BY_PLAYERS[this.numPlayers] ?? INITIAL_MONEY,
             income: INITIAL_INCOME,
+            incomePosition: lowestTrackPositionForIncomeLevel(INITIAL_INCOME),
             vp: 0,
             hand: [],
             industryTiles: industryTiles,
@@ -185,9 +186,23 @@ class GameState {
     // Income track helpers
     // ========================================================================
 
-    adjustIncome(playerId, amount) {
+    advanceIncomeBySpaces(playerId, spaces) {
         const player = this.players[playerId];
-        player.income = Math.min(MAX_INCOME, Math.max(MIN_INCOME, player.income + amount));
+        const currentPosition = player.incomePosition ?? lowestTrackPositionForIncomeLevel(player.income);
+        player.incomePosition = Math.min(
+            INCOME_TRACK_LEVELS.length - 1,
+            Math.max(0, currentPosition + spaces)
+        );
+        player.income = incomeLevelFromTrackPosition(player.incomePosition);
+    }
+
+    decreaseIncomeByLevels(playerId, levels) {
+        const player = this.players[playerId];
+        const currentPosition = player.incomePosition ?? lowestTrackPositionForIncomeLevel(player.income);
+        const currentIncome = incomeLevelFromTrackPosition(currentPosition);
+        const targetIncome = Math.max(MIN_INCOME, currentIncome - levels);
+        player.incomePosition = highestTrackPositionForIncomeLevel(targetIncome);
+        player.income = targetIncome;
     }
 
     getIncomeAmount(income) {
@@ -499,7 +514,7 @@ class GameState {
         if (tile.flipped) return;
         tile.flipped = true;
         // Increase income
-        this.adjustIncome(tile.playerId, tile.tileData.income);
+        this.advanceIncomeBySpaces(tile.playerId, tile.tileData.income);
     }
 
     // ========================================================================
@@ -833,6 +848,7 @@ class GameState {
                 name: p.name,
                 money: p.money,
                 income: p.income,
+                incomePosition: p.incomePosition,
                 vp: p.vp,
                 handSize: p.hand.length,
                 linksRemaining: p.linksRemaining,
