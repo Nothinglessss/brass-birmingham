@@ -404,7 +404,7 @@ class GameState {
     findIronSource(playerId) {
         const sources = [];
 
-        // Iron doesn't neç¿-¢G§²ÚîÆ­yĞ        !tile.flipped && tile.resourceCubes > 0) {
+        // Iron doesn't neç¿m¢G§²ÚîÆ­yĞ     !tile.flipped && tile.resourceCubes > 0) {
                 for (let c = 0; c < tile.resourceCubes; c++) {
                     sources.push({ type: 'own', key: `farm_${farmId}` });
                 }
@@ -563,12 +563,12 @@ class GameState {
             }
         }
 
-        // Determine turn order: player who spent MOST goes first next round
+        // Determine turn order: player who spent LEAST goes first next round
         // Ties broken by current turn order (earlier player goes first)
         this.turnOrder.sort((a, b) => {
             const spentA = this.moneySpentThisRound[a] || 0;
             const spentB = this.moneySpentThisRound[b] || 0;
-            if (spentA !== spentB) return spentB - spentA; // More spending = earlier turn
+            if (spentA !== spentB) return spentA - spentB; // Less spending = earlier turn
             return 0; // Maintain current relative order for ties
         });
 
