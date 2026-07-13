@@ -536,11 +536,42 @@ const IRON_MARKET_INITIAL = 8; // cubes at start (spaces 2-9 filled, spaces 0-1 
 // Starting money varies by player count per official Brass: Birmingham rules
 const INITIAL_MONEY_BY_PLAYERS = { 2: 17, 3: 14, 4: 10 };
 const INITIAL_MONEY = 17; // fallback (2-player default)
-const INITIAL_INCOME = 10;
+const INITIAL_INCOME = 0;
 const LOAN_AMOUNT = 30;
 const LOAN_INCOME_PENALTY = 3;
 const MAX_INCOME = 30;
 const MIN_INCOME = -10;
+
+const INCOME_TRACK_LEVELS = [];
+for (let level = MIN_INCOME; level <= 0; level++) {
+    INCOME_TRACK_LEVELS.push(level);
+}
+for (let level = 1; level <= 10; level++) {
+    INCOME_TRACK_LEVELS.push(level, level);
+}
+for (let level = 11; level <= 20; level++) {
+    INCOME_TRACK_LEVELS.push(level, level, level);
+}
+for (let level = 21; level <= MAX_INCOME; level++) {
+    INCOME_TRACK_LEVELS.push(level, level, level, level);
+}
+
+function lowestTrackPositionForIncomeLevel(incomeLevel) {
+    const idx = INCOME_TRACK_LEVELS.indexOf(incomeLevel);
+    if (idx >= 0) return idx;
+    return incomeLevel <= MIN_INCOME ? 0 : INCOME_TRACK_LEVELS.length - 1;
+}
+
+function highestTrackPositionForIncomeLevel(incomeLevel) {
+    const idx = INCOME_TRACK_LEVELS.lastIndexOf(incomeLevel);
+    if (idx >= 0) return idx;
+    return incomeLevel <= MIN_INCOME ? 0 : INCOME_TRACK_LEVELS.length - 1;
+}
+
+function incomeLevelFromTrackPosition(position) {
+    const clamped = Math.min(INCOME_TRACK_LEVELS.length - 1, Math.max(0, position));
+    return INCOME_TRACK_LEVELS[clamped];
+}
 
 // Spending money: the amount you pay per income level on the income track
 // From income -10 to 0, pay 1 per level (e.g., income -10 means pay £10)

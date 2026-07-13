@@ -20,7 +20,7 @@ class GameLogic {
             case ACTIONS.NETWORK: return this.getValidNetworkTargets(playerId).length > 0;
             case ACTIONS.DEVELOP: return this.canDevelop(playerId);
             case ACTIONS.SELL: return this.getValidSellTargets(playerId).length > 0;
-            case ACTIONS.LOAN: return true; // Can always take a loan
+            case ACTIONS.LOAN: return this.canTakeLoan(playerId);
             case ACTIONS.SCOUT: return this.canScout(playerId);
             case ACTIONS.PASS: return true; // Can always pass
             default: return false;
@@ -574,7 +574,7 @@ class GameLogic {
 
             // Flip tile
             tile.flipped = true;
-            this.state.adjustIncome(playerId, tile.tileData.income);
+            this.state.advanceIncomeBySpaces(playerId, tile.tileData.income);
 
             // Check for merchant bonus (at most one bonus per sell action)
             if (!merchantBonusClaimed) {
@@ -595,7 +595,7 @@ class GameLogic {
                                         player.money += merchData.bonusAmount;
                                         break;
                                     case 'income':
-                                        this.state.adjustIncome(playerId, merchData.bonusAmount);
+                                        this.state.advanceIncomeBySpaces(playerId, merchData.bonusAmount);
                                         break;
                                     case 'develop':
                                         // Free develop: remove lowest tile from player mat (no iron cost)
@@ -622,10 +622,20 @@ class GameLogic {
     // LOAN Action
     // ========================================================================
 
+    canTakeLoan(playerId) {
+        const player = this.state.players[playerId];
+        const currentPosition = player.incomePosition ?? lowestTrackPositionForIncomeLevel(player.income);
+        return incomeLevelFromTrackPosition(currentPosition) - LOAN_INCOME_PENALTY >= MIN_INCOME;
+    }
+
     executeLoan(playerId, cardIndex) {
+        if (!this.canTakeLoan(playerId)) {
+            return { success: false, message: 'Cannot take a loan below income level -10' };
+        }
+
         const player = this.state.players[playerId];
         player.money += LOAN_AMOUNT;
-        this.state.adjustIncome(playerId, -LOAN_INCOME_PENALTY);
+        this.state.decreaseIncomeByLevels(playerId, LOAN_INCOME_PENALTY);
 
         this.discardCard(playerId, cardIndex);
 
@@ -735,7 +745,7 @@ class GameLogic {
                 if (this.getValidSellTargets(playerId).length === 0) return 'No industries ready to sell';
                 return null;
             case ACTIONS.LOAN:
-                return null;
+                return this.canTakeLoan(playerId) ? null : 'Loan would lower income below -10';
             case ACTIONS.SCOUT:
                 if (player.hand.length < 3) return 'Need at least 3 cards';
                 if (player.hasWildLocation || player.hasWildIndustry) return 'Already have wild cards';
