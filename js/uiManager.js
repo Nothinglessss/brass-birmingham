@@ -132,6 +132,7 @@ class UIManager {
                 </div>
                 <div class="player-panel-stats">
                     <span class="player-panel-stat" title="Money" style="color:#c9a84c">£${player.money}</span>
+                    <span class="player-panel-stat player-panel-spent" title="Money spent this round">£${this.state.moneySpentThisRound[player.id] ?? 0} spent</span>
                     <span class="player-panel-stat" title="Income">&#8679; ${player.income}</span>
                     <span class="player-panel-stat" title="Cards">${player.hand.length} cds</span>
                     <span class="player-panel-stat" title="Links">
