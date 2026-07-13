@@ -261,11 +261,29 @@ class GameLogic {
             flipped: false,
             resourceCubes: tileData.resourceCubes || 0,
         };
+        this.sellNewResourceTileToMarket(playerId, cityId, key);
 
         // Discard the used card
         this.discardCard(playerId, cardIndex);
 
         return { success: true, message: `Built ${INDUSTRY_DISPLAY[industryType].name} Level ${tileData.level} in ${CITIES[cityId].name}` };
+    }
+
+    sellNewResourceTileToMarket(playerId, cityId, key) {
+        const tile = this.state.boardIndustries[key];
+        if (!tile || tile.resourceCubes <= 0) return;
+
+        let sale = null;
+        if (tile.type === INDUSTRY_TYPES.IRON_WORKS) {
+            sale = this.state.sellIronToMarket(tile.resourceCubes);
+        } else if (tile.type === INDUSTRY_TYPES.COAL_MINE && this.state.isConnectedToMerchant(cityId)) {
+            sale = this.state.sellCoalToMarket(tile.resourceCubes);
+        }
+
+        if (!sale || sale.sold <= 0) return;
+        tile.resourceCubes -= sale.sold;
+        this.state.players[playerId].money += sale.revenue;
+        if (tile.resourceCubes <= 0) this.state.flipTile(key, tile);
     }
 
     isResourceDepleted(industryType) {

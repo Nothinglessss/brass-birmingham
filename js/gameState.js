@@ -249,19 +249,31 @@ class GameState {
     }
 
     sellCoalToMarket(count) {
+        let sold = 0;
+        let revenue = 0;
         for (let i = 0; i < count; i++) {
             if (this.coalMarket < COAL_MARKET_PRICES.length) {
+                const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket - 1;
+                revenue += COAL_MARKET_PRICES[spaceIndex] || 0;
                 this.coalMarket++;
+                sold++;
             }
         }
+        return { sold, revenue };
     }
 
     sellIronToMarket(count) {
+        let sold = 0;
+        let revenue = 0;
         for (let i = 0; i < count; i++) {
             if (this.ironMarket < IRON_MARKET_PRICES.length) {
+                const spaceIndex = IRON_MARKET_PRICES.length - this.ironMarket - 1;
+                revenue += IRON_MARKET_PRICES[spaceIndex] || 0;
                 this.ironMarket++;
+                sold++;
             }
         }
+        return { sold, revenue };
     }
 
     // ========================================================================
@@ -391,13 +403,19 @@ class GameState {
         // Sort by distance (nearest first)
         sources.sort((a, b) => a.distance - b.distance);
 
-        // Add one market entry per available coal cube so callers needing 2+ coal see enough entries
-        for (let i = 0; i < this.coalMarket; i++) {
-            const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket + i;
-            sources.push({ type: 'market', price: COAL_MARKET_PRICES[spaceIndex] || Infinity, free: false });
+        // Coal from the market requires a connection to an external merchant location.
+        if (this.isConnectedToMerchant(locationId)) {
+            for (let i = 0; i < this.coalMarket; i++) {
+                const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket + i;
+                sources.push({ type: 'market', price: COAL_MARKET_PRICES[spaceIndex] || Infinity, free: false });
+            }
         }
 
         return sources;
+    }
+
+    isConnectedToMerchant(locationId) {
+        return this.getConnectedLocations(locationId).some(isMerchantLocation);
     }
 
     // Find iron source: any unflipped iron works (no connection needed), or market
