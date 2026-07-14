@@ -617,6 +617,24 @@ class GameLogic {
         return types;
     }
 
+    getFreeDevelopOptions(playerId) {
+        return this.getDevelopableTypes(playerId);
+    }
+
+    applyChosenFreeDevelop(playerId, industryType) {
+        const option = this.getFreeDevelopOptions(playerId)
+            .find(candidate => candidate.type === industryType);
+        if (!option) return null;
+
+        const tile = this.state.developTile(playerId, industryType);
+        if (!tile) return null;
+        return {
+            industryType,
+            name: option.name,
+            level: option.level,
+        };
+    }
+
     executeDevelop(playerId, industryType1, industryType2, cardIndex, resourceSelections = []) {
         // Develop removes 1 or 2 tiles from player mat (uses iron)
         // industryType2 can be null for single develop
@@ -707,7 +725,8 @@ class GameLogic {
         tileKey,
         merchantIndex,
         cardIndex,
-        resourceSelections = []
+        resourceSelections = [],
+        freeDevelopIndustryType = null
     ) {
         const validCards = this.getValidCardsForAction(playerId, ACTIONS.SELL);
         if (!validCards.includes(cardIndex)) {
@@ -718,7 +737,8 @@ class GameLogic {
             playerId,
             tileKey,
             merchantIndex,
-            resourceSelections
+            resourceSelections,
+            freeDevelopIndustryType
         );
         if (!result.success) return result;
 
@@ -730,7 +750,8 @@ class GameLogic {
         playerId,
         tileKey,
         merchantIndex,
-        resourceSelections = []
+        resourceSelections = [],
+        freeDevelopIndustryType = null
     ) {
         const player = this.state.players[playerId];
         const validTarget = this.getValidSellTargets(playerId).some(target =>
@@ -758,11 +779,29 @@ class GameLogic {
         );
         const merchant = this.state.merchantTiles[merchantIndex];
         const merchantData = usedMerchantBeer ? MERCHANTS[merchant.location] : null;
+        let freeDevelopOption = null;
+
+        if (merchantData?.bonusType === 'develop') {
+            const options = this.getFreeDevelopOptions(playerId);
+            if (options.length > 0) {
+                freeDevelopOption = options.find(option =>
+                    option.type === freeDevelopIndustryType
+                );
+                if (!freeDevelopOption) {
+                    return {
+                        success: false,
+                        message: 'Choose an industry for Gloucester free Develop',
+                    };
+                }
+            }
+        }
+
         this.commitResourcePlan(resourcePlan);
 
         tile.flipped = true;
         this.state.advanceIncomeBySpaces(playerId, tile.tileData.income);
 
+        let freeDevelopResult = null;
         if (usedMerchantBeer) {
             merchant.bonusClaimed = true;
             if (merchantData) {
@@ -777,16 +816,25 @@ class GameLogic {
                         this.state.advanceIncomeBySpaces(playerId, merchantData.bonusAmount);
                         break;
                     case 'develop':
-                        this.applyFreeDevelop(playerId, merchantData.bonusAmount);
+                        if (freeDevelopOption) {
+                            freeDevelopResult = this.applyChosenFreeDevelop(
+                                playerId,
+                                freeDevelopOption.type
+                            );
+                        }
                         break;
                 }
             }
         }
 
         const baseMessage = `Sold ${INDUSTRY_DISPLAY[tile.type].name} Lv${tile.tileData.level}`;
+        const bonusMessage = freeDevelopResult
+            ? `; free developed ${freeDevelopResult.name} Lv${freeDevelopResult.level}`
+            : '';
         return {
             success: true,
-            message: baseMessage,
+            message: `${baseMessage}${bonusMessage}`,
+            freeDevelop: freeDevelopResult,
         };
     }
 
@@ -794,13 +842,15 @@ class GameLogic {
         playerId,
         tileKey,
         merchantIndex,
-        resourceSelections = []
+        resourceSelections = [],
+        freeDevelopIndustryType = null
     ) {
         return this.executeSellIndustry(
             playerId,
             tileKey,
             merchantIndex,
-            resourceSelections
+            resourceSelections,
+            freeDevelopIndustryType
         );
     }
 

@@ -352,7 +352,9 @@ class UIManager {
             instructionText = this.getTargetInstruction();
         } else if (this.actionStep === 1) {
             currentStep = 3; // Select Resources
-            instructionText = 'Choose which resource source to consume';
+            instructionText = this.pendingData.selectingFreeDevelop
+                ? 'Choose an industry for free Develop'
+                : 'Choose which resource source to consume';
         } else if (this.actionStep >= 2) {
             currentStep = 4; // Discard Card
             if (this.selectedAction === ACTIONS.SCOUT) {
@@ -434,8 +436,24 @@ class UIManager {
         }
     }
 
+    getPendingFreeDevelopOptions(plan) {
+        if (this.selectedAction !== ACTIONS.SELL) return [];
+        const merchantConsumption = plan.consumptions?.find(unit =>
+            unit.sourceType === 'merchant' &&
+            unit.merchantIndex === this.pendingData.merchantIndex
+        );
+        if (!merchantConsumption) return [];
+
+        const merchant = this.state.merchantTiles[merchantConsumption.merchantIndex];
+        const merchantData = merchant ? MERCHANTS[merchant.location] : null;
+        if (merchantData?.bonusType !== 'develop') return [];
+
+        return this.logic.getFreeDevelopOptions(this.state.currentPlayerId);
+    }
+
     finishResourcePlanning(plan) {
         this.pendingData.resourcePlan = plan;
+        this.pendingData.selectingFreeDevelop = false;
         if (this.selectedAction === ACTIONS.SELL && this.sellSession?.committed) {
             this.closeModal();
             this.processAdditionalSell();
@@ -450,6 +468,16 @@ class UIManager {
     advanceResourcePlanning() {
         const plan = this.getPendingResourcePlan();
         if (plan.status === 'complete') {
+            const freeDevelopOptions = this.getPendingFreeDevelopOptions(plan);
+            if (freeDevelopOptions.length > 0 &&
+                !this.pendingData.freeDevelopChoiceResolved) {
+                this.pendingData.resourcePlan = plan;
+                this.pendingData.selectingFreeDevelop = true;
+                this.actionStep = 1;
+                this.updatePhaseBar();
+                this.showFreeDevelopChoice(freeDevelopOptions);
+                return;
+            }
             this.finishResourcePlanning(plan);
             return;
         }
@@ -541,6 +569,45 @@ class UIManager {
             item.addEventListener('click', () => {
                 this.pendingData.resourceSelections.push(item.dataset.source);
                 this.advanceResourcePlanning();
+            });
+        });
+    }
+
+    renderFreeDevelopChoiceHtml(options) {
+        let html = '<div class="choice-list free-develop-choice-list">';
+        for (const option of options) {
+            const display = INDUSTRY_DISPLAY[option.type];
+            html += `
+                <div class="choice-item free-develop-choice"
+                     data-industry="${option.type}">
+                    <div class="choice-item-icon">${display.icon}</div>
+                    <div class="choice-item-text">
+                        <div class="choice-item-name">${option.name}</div>
+                        <div class="choice-item-detail">Level ${option.level}</div>
+                    </div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        return html;
+    }
+
+    selectFreeDevelopIndustry(industryType) {
+        this.pendingData.freeDevelopIndustryType = industryType;
+        this.pendingData.freeDevelopChoiceResolved = true;
+        this.pendingData.selectingFreeDevelop = false;
+        this.advanceResourcePlanning();
+    }
+
+    showFreeDevelopChoice(options) {
+        this.showModal(
+            'Choose Free Develop',
+            this.renderFreeDevelopChoiceHtml(options),
+            null
+        );
+        document.querySelectorAll('#modal-body .free-develop-choice').forEach(item => {
+            item.addEventListener('click', () => {
+                this.selectFreeDevelopIndustry(item.dataset.industry);
             });
         });
     }
@@ -1033,7 +1100,8 @@ class UIManager {
             this.state.currentPlayerId,
             this.pendingData.tileKey,
             this.pendingData.merchantIndex,
-            this.pendingData.resourceSelections
+            this.pendingData.resourceSelections,
+            this.pendingData.freeDevelopIndustryType
         );
         this.handleSellResult(result);
     }
@@ -1169,7 +1237,8 @@ class UIManager {
                     this.pendingData.tileKey,
                     this.pendingData.merchantIndex,
                     cardIndex,
-                    this.pendingData.resourceSelections
+                    this.pendingData.resourceSelections,
+                    this.pendingData.freeDevelopIndustryType
                 );
                 this.handleSellResult(result);
                 break;
