@@ -22,6 +22,7 @@ class UIManager {
         this.selectedCard = null;
         this.actionStep = 0; // Multi-step action tracking
         this.pendingData = {}; // Data accumulated during multi-step actions
+        this.sellSession = null;
         this.gameLog = []; // Game log entries
         this.previousPlayerId = null; // Track player changes for transitions
     }
@@ -492,15 +493,28 @@ class UIManager {
     }
 
     cancelAction() {
+        if (this.selectedAction === ACTIONS.SELL && this.sellSession?.committed) {
+            this.finishSellAction();
+            return;
+        }
         this.selectedAction = null;
         this.actionStep = 0;
         this.pendingData = {};
         this.selectedCard = null;
+        this.sellSession = null;
         this.renderer.clearHighlights();
         this.updateActionButtons();
         this.updateHand();
         this.updatePhaseBar();
         this.closeModal();
+    }
+
+    finishSellAction() {
+        const messages = this.sellSession?.messages || [];
+        this.completeAction({
+            success: true,
+            message: messages.join(', ') || 'Finished selling',
+        });
     }
 
     // ========================================================================
@@ -743,20 +757,28 @@ class UIManager {
     // ========================================================================
 
     startSell(playerId) {
+        this.sellSession ||= { committed: false, messages: [] };
         const targets = this.logic.getValidSellTargets(playerId);
         if (targets.length === 0) {
-            this.showToast('Nothing to sell', 'warning');
-            this.cancelAction();
+            if (this.sellSession.committed) {
+                this.finishSellAction();
+            } else {
+                this.showToast('Nothing to sell', 'warning');
+                this.cancelAction();
+            }
             return;
         }
 
-        let html = '<p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">Select industries to sell (you may sell multiple in one action).</p>';
+        const instruction = this.sellSession.committed
+            ? 'Select another industry to sell, including a different type, or finish the action.'
+            : 'Select one industry to sell.';
+        let html = `<p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">${instruction}</p>`;
         html += '<div class="choice-list">';
         for (const target of targets) {
             const display = INDUSTRY_DISPLAY[target.tile.type];
             const cityName = CITIES[target.cityId]?.name || target.cityId;
             html += `
-                <div class="choice-item" data-key="${target.key}" data-selected="false">
+                <div class="choice-item" data-key="${target.key}">
                     <div class="choice-item-icon">${display.icon}</div>
                     <div class="choice-item-text">
                         <div class="choice-item-name">${display.name} Lv${target.tile.tileData.level}</div>
@@ -768,34 +790,71 @@ class UIManager {
         }
         html += '</div>';
 
-        const footer = '<button class="modal-btn modal-btn-primary" id="confirm-sell">Sell Selected</button>';
+        const footer = this.renderSellFooterHtml(this.sellSession.committed);
         this.showModal('Sell Goods', html, null, footer);
 
-        const selectedKeys = new Set();
+        document.getElementById('sell-done-btn')?.addEventListener('click', () => {
+            this.finishSellAction();
+        });
+
         document.querySelectorAll('#modal-body .choice-item').forEach(item => {
             item.addEventListener('click', () => {
-                const key = item.dataset.key;
-                if (selectedKeys.has(key)) {
-                    selectedKeys.delete(key);
-                    item.style.borderColor = '';
+                this.pendingData = { tileKey: item.dataset.key };
+                this.closeModal();
+                if (this.sellSession.committed) {
+                    this.processAdditionalSell();
                 } else {
-                    selectedKeys.add(key);
-                    item.style.borderColor = 'var(--accent-gold)';
+                    this.actionStep = 1;
+                    this.updatePhaseBar();
+                    this.updateHand();
                 }
             });
         });
+    }
 
-        document.getElementById('confirm-sell').addEventListener('click', () => {
-            if (selectedKeys.size === 0) {
-                this.showToast('Select at least one industry to sell', 'warning');
+    renderSellFooterHtml(committed) {
+        return committed
+            ? '<button class="modal-btn modal-btn-primary" id="sell-done-btn">Done Selling</button>'
+            : '';
+    }
+
+    processAdditionalSell() {
+        const result = this.logic.executeAdditionalSell(
+            this.state.currentPlayerId,
+            this.pendingData.tileKey
+        );
+        this.handleSellResult(result);
+    }
+
+    handleSellResult(result) {
+        const playerId = this.state.currentPlayerId;
+        if (!result.success) {
+            this.showToast(result.message, 'error');
+            if (!this.sellSession?.committed) {
+                this.cancelAction();
                 return;
             }
-            this.pendingData.tileKeys = [...selectedKeys];
-            this.closeModal();
-            this.actionStep = 1;
-            this.updatePhaseBar();
-            this.updateHand();
-        });
+            this.pendingData = {};
+            this.actionStep = 0;
+            this.startSell(playerId);
+            return;
+        }
+
+        this.addLogEntry(playerId, result.message.toLowerCase());
+        this.sellSession ||= { committed: false, messages: [] };
+        this.sellSession.committed = true;
+        this.sellSession.messages.push(result.message);
+        this.pendingData = {};
+        this.selectedCard = null;
+        this.actionStep = 0;
+
+        if (this.logic.getValidSellTargets(playerId).length === 0) {
+            this.finishSellAction();
+            return;
+        }
+        this.updatePhaseBar();
+        this.updateHand();
+        this.startSell(playerId);
     }
 
     // ========================================================================
@@ -887,13 +946,10 @@ class UIManager {
             case ACTIONS.SELL: {
                 const result = this.logic.executeSell(
                     playerId,
-                    this.pendingData.tileKeys,
+                    this.pendingData.tileKey,
                     cardIndex
                 );
-                if (result.success) {
-                    this.addLogEntry(playerId, result.message.toLowerCase());
-                }
-                this.completeAction(result);
+                this.handleSellResult(result);
                 break;
             }
 
@@ -957,6 +1013,7 @@ class UIManager {
         this.actionStep = 0;
         this.pendingData = {};
         this.selectedCard = null;
+        this.sellSession = null;
         this.renderer.clearHighlights();
 
         const turnResult = this.state.advanceTurn();
