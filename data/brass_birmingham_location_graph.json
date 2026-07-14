@@ -1,0 +1,1675 @@
+{
+  "game": "Brass: Birmingham",
+  "map": "Birmingham board",
+  "rulebook_basis": {
+    "publisher": "Roxley Games",
+    "rulebook_version": "2018.11",
+    "graph_interpretation": {
+      "directed": false,
+      "canal_era_uses": "canal",
+      "rail_era_uses": "rail",
+      "connected_meaning": "A route of placed link tiles may pass through multiple locations and may use any players' links.",
+      "player_count_note": "Location-card availability changes with player count, but physical industry locations remain buildable at 2, 3, and 4 players.",
+      "farm_brewery_note": "Farm breweries have no location cards and can be selected only with a Brewery or Wild Industry card."
+    }
+  },
+  "counts": {
+    "nodes": 27,
+    "industry_locations": 20,
+    "merchant_locations": 5,
+    "farm_brewery_locations": 2,
+    "physical_link_spaces": 39,
+    "canal_link_spaces": 31,
+    "rail_link_spaces": 38,
+    "dual_mode_link_spaces": 30,
+    "canal_only_link_spaces": 1,
+    "rail_only_link_spaces": 8
+  },
+  "nodes": [
+    {
+      "id": "belper",
+      "name": "Belper",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "derby",
+      "name": "Derby",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "leek",
+      "name": "Leek",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stokeOnTrent",
+      "name": "Stoke-on-Trent",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stone",
+      "name": "Stone",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "uttoxeter",
+      "name": "Uttoxeter",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stafford",
+      "name": "Stafford",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "burtonUponTrent",
+      "name": "Burton-upon-Trent",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "cannock",
+      "name": "Cannock",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "tamworth",
+      "name": "Tamworth",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "walsall",
+      "name": "Walsall",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "wolverhampton",
+      "name": "Wolverhampton",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "coalbrookdale",
+      "name": "Coalbrookdale",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "dudley",
+      "name": "Dudley",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "kidderminster",
+      "name": "Kidderminster",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "worcester",
+      "name": "Worcester",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "birmingham",
+      "name": "Birmingham",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "coventry",
+      "name": "Coventry",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "nuneaton",
+      "name": "Nuneaton",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "redditch",
+      "name": "Redditch",
+      "node_type": "industry_location",
+      "location_card_player_counts": [
+        2,
+        3,
+        4
+      ],
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "shrewsbury",
+      "name": "Shrewsbury",
+      "node_type": "merchant_location",
+      "merchant_slot_count": 1,
+      "merchant_tile_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "gloucester",
+      "name": "Gloucester",
+      "node_type": "merchant_location",
+      "merchant_slot_count": 2,
+      "merchant_tile_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "oxford",
+      "name": "Oxford",
+      "node_type": "merchant_location",
+      "merchant_slot_count": 2,
+      "merchant_tile_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "warrington",
+      "name": "Warrington",
+      "node_type": "merchant_location",
+      "merchant_slot_count": 2,
+      "merchant_tile_player_counts": [
+        3,
+        4
+      ]
+    },
+    {
+      "id": "nottingham",
+      "name": "Nottingham",
+      "node_type": "merchant_location",
+      "merchant_slot_count": 2,
+      "merchant_tile_player_counts": [
+        4
+      ]
+    },
+    {
+      "id": "farmBreweryNorth",
+      "name": "Farm Brewery (north, near Cannock)",
+      "node_type": "farm_brewery_location",
+      "industry_slot_count": 1,
+      "allowed_industry": "brewery",
+      "has_location_card": false,
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "farmBrewerySouth",
+      "name": "Farm Brewery (south, near Kidderminster/Worcester)",
+      "node_type": "farm_brewery_location",
+      "industry_slot_count": 1,
+      "allowed_industry": "brewery",
+      "has_location_card": false,
+      "buildable_player_counts": [
+        2,
+        3,
+        4
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "belper__derby",
+      "edge_type": "link_space",
+      "endpoints": [
+        "belper",
+        "derby"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "belper__leek",
+      "edge_type": "link_space",
+      "endpoints": [
+        "belper",
+        "leek"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__coventry",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "coventry"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__dudley",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "dudley"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__nuneaton",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "nuneaton"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__oxford",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "oxford"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__redditch",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "redditch"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__tamworth",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "tamworth"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__walsall",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "walsall"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "birmingham__worcester",
+      "edge_type": "link_space",
+      "endpoints": [
+        "birmingham",
+        "worcester"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "burtonUponTrent__cannock",
+      "edge_type": "link_space",
+      "endpoints": [
+        "burtonUponTrent",
+        "cannock"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "burtonUponTrent__derby",
+      "edge_type": "link_space",
+      "endpoints": [
+        "burtonUponTrent",
+        "derby"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "burtonUponTrent__stone",
+      "edge_type": "link_space",
+      "endpoints": [
+        "burtonUponTrent",
+        "stone"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "burtonUponTrent__tamworth",
+      "edge_type": "link_space",
+      "endpoints": [
+        "burtonUponTrent",
+        "tamworth"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "burtonUponTrent__walsall",
+      "edge_type": "link_space",
+      "endpoints": [
+        "burtonUponTrent",
+        "walsall"
+      ],
+      "modes": [
+        "canal"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "cannock__stafford",
+      "edge_type": "link_space",
+      "endpoints": [
+        "cannock",
+        "stafford"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "cannock__farmBreweryNorth",
+      "edge_type": "link_space",
+      "endpoints": [
+        "cannock",
+        "farmBreweryNorth"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "cannock__walsall",
+      "edge_type": "link_space",
+      "endpoints": [
+        "cannock",
+        "walsall"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "cannock__wolverhampton",
+      "edge_type": "link_space",
+      "endpoints": [
+        "cannock",
+        "wolverhampton"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "coalbrookdale__kidderminster",
+      "edge_type": "link_space",
+      "endpoints": [
+        "coalbrookdale",
+        "kidderminster"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "coalbrookdale__shrewsbury",
+      "edge_type": "link_space",
+      "endpoints": [
+        "coalbrookdale",
+        "shrewsbury"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "coalbrookdale__wolverhampton",
+      "edge_type": "link_space",
+      "endpoints": [
+        "coalbrookdale",
+        "wolverhampton"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "coventry__nuneaton",
+      "edge_type": "link_space",
+      "endpoints": [
+        "coventry",
+        "nuneaton"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "derby__nottingham",
+      "edge_type": "link_space",
+      "endpoints": [
+        "derby",
+        "nottingham"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "derby__uttoxeter",
+      "edge_type": "link_space",
+      "endpoints": [
+        "derby",
+        "uttoxeter"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "dudley__kidderminster",
+      "edge_type": "link_space",
+      "endpoints": [
+        "dudley",
+        "kidderminster"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "dudley__wolverhampton",
+      "edge_type": "link_space",
+      "endpoints": [
+        "dudley",
+        "wolverhampton"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "gloucester__redditch",
+      "edge_type": "link_space",
+      "endpoints": [
+        "gloucester",
+        "redditch"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "gloucester__worcester",
+      "edge_type": "link_space",
+      "endpoints": [
+        "gloucester",
+        "worcester"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "leek__stokeOnTrent",
+      "edge_type": "link_space",
+      "endpoints": [
+        "leek",
+        "stokeOnTrent"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "nuneaton__tamworth",
+      "edge_type": "link_space",
+      "endpoints": [
+        "nuneaton",
+        "tamworth"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "oxford__redditch",
+      "edge_type": "link_space",
+      "endpoints": [
+        "oxford",
+        "redditch"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "stafford__stone",
+      "edge_type": "link_space",
+      "endpoints": [
+        "stafford",
+        "stone"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "stokeOnTrent__stone",
+      "edge_type": "link_space",
+      "endpoints": [
+        "stokeOnTrent",
+        "stone"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "stokeOnTrent__warrington",
+      "edge_type": "link_space",
+      "endpoints": [
+        "stokeOnTrent",
+        "warrington"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "stone__uttoxeter",
+      "edge_type": "link_space",
+      "endpoints": [
+        "stone",
+        "uttoxeter"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "tamworth__walsall",
+      "edge_type": "link_space",
+      "endpoints": [
+        "tamworth",
+        "walsall"
+      ],
+      "modes": [
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "walsall__wolverhampton",
+      "edge_type": "link_space",
+      "endpoints": [
+        "walsall",
+        "wolverhampton"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1
+    },
+    {
+      "id": "kidderminster__worcester__farmBrewerySouth",
+      "edge_type": "link_space_hyperedge",
+      "endpoints": [
+        "kidderminster",
+        "worcester",
+        "farmBrewerySouth"
+      ],
+      "modes": [
+        "canal",
+        "rail"
+      ],
+      "undirected": true,
+      "link_tiles_required": 1,
+      "connects_all_endpoints": true,
+      "rule_note": "This is one link space, not three separate edges; no second link tile may be placed here."
+    }
+  ],
+  "adjacency": {
+    "belper": {
+      "canal": [
+        "derby"
+      ],
+      "rail": [
+        "derby",
+        "leek"
+      ]
+    },
+    "derby": {
+      "canal": [
+        "belper",
+        "burtonUponTrent",
+        "nottingham"
+      ],
+      "rail": [
+        "belper",
+        "burtonUponTrent",
+        "nottingham",
+        "uttoxeter"
+      ]
+    },
+    "leek": {
+      "canal": [
+        "stokeOnTrent"
+      ],
+      "rail": [
+        "belper",
+        "stokeOnTrent"
+      ]
+    },
+    "stokeOnTrent": {
+      "canal": [
+        "leek",
+        "stone",
+        "warrington"
+      ],
+      "rail": [
+        "leek",
+        "stone",
+        "warrington"
+      ]
+    },
+    "stone": {
+      "canal": [
+        "burtonUponTrent",
+        "stafford",
+        "stokeOnTrent"
+      ],
+      "rail": [
+        "burtonUponTrent",
+        "stafford",
+        "stokeOnTrent",
+        "uttoxeter"
+      ]
+    },
+    "uttoxeter": {
+      "canal": [],
+      "rail": [
+        "derby",
+        "stone"
+      ]
+    },
+    "stafford": {
+      "canal": [
+        "cannock",
+        "stone"
+      ],
+      "rail": [
+        "cannock",
+        "stone"
+      ]
+    },
+    "burtonUponTrent": {
+      "canal": [
+        "derby",
+        "stone",
+        "tamworth",
+        "walsall"
+      ],
+      "rail": [
+        "cannock",
+        "derby",
+        "stone",
+        "tamworth"
+      ]
+    },
+    "cannock": {
+      "canal": [
+        "farmBreweryNorth",
+        "stafford",
+        "walsall",
+        "wolverhampton"
+      ],
+      "rail": [
+        "burtonUponTrent",
+        "farmBreweryNorth",
+        "stafford",
+        "walsall",
+        "wolverhampton"
+      ]
+    },
+    "tamworth": {
+      "canal": [
+        "birmingham",
+        "burtonUponTrent",
+        "nuneaton"
+      ],
+      "rail": [
+        "birmingham",
+        "burtonUponTrent",
+        "nuneaton",
+        "walsall"
+      ]
+    },
+    "walsall": {
+      "canal": [
+        "birmingham",
+        "burtonUponTrent",
+        "cannock",
+        "wolverhampton"
+      ],
+      "rail": [
+        "birmingham",
+        "cannock",
+        "tamworth",
+        "wolverhampton"
+      ]
+    },
+    "wolverhampton": {
+      "canal": [
+        "cannock",
+        "coalbrookdale",
+        "dudley",
+        "walsall"
+      ],
+      "rail": [
+        "cannock",
+        "coalbrookdale",
+        "dudley",
+        "walsall"
+      ]
+    },
+    "coalbrookdale": {
+      "canal": [
+        "kidderminster",
+        "shrewsbury",
+        "wolverhampton"
+      ],
+      "rail": [
+        "kidderminster",
+        "shrewsbury",
+        "wolverhampton"
+      ]
+    },
+    "dudley": {
+      "canal": [
+        "birmingham",
+        "kidderminster",
+        "wolverhampton"
+      ],
+      "rail": [
+        "birmingham",
+        "kidderminster",
+        "wolverhampton"
+      ]
+    },
+    "kidderminster": {
+      "canal": [
+        "coalbrookdale",
+        "dudley",
+        "farmBrewerySouth",
+        "worcester"
+      ],
+      "rail": [
+        "coalbrookdale",
+        "dudley",
+        "farmBrewerySouth",
+        "worcester"
+      ]
+    },
+    "worcester": {
+      "canal": [
+        "birmingham",
+        "farmBrewerySouth",
+        "gloucester",
+        "kidderminster"
+      ],
+      "rail": [
+        "birmingham",
+        "farmBrewerySouth",
+        "gloucester",
+        "kidderminster"
+      ]
+    },
+    "birmingham": {
+      "canal": [
+        "coventry",
+        "dudley",
+        "oxford",
+        "tamworth",
+        "walsall",
+        "worcester"
+      ],
+      "rail": [
+        "coventry",
+        "dudley",
+        "nuneaton",
+        "oxford",
+        "redditch",
+        "tamworth",
+        "walsall",
+        "worcester"
+      ]
+    },
+    "coventry": {
+      "canal": [
+        "birmingham"
+      ],
+      "rail": [
+        "birmingham",
+        "nuneaton"
+      ]
+    },
+    "nuneaton": {
+      "canal": [
+        "tamworth"
+      ],
+      "rail": [
+        "birmingham",
+        "coventry",
+        "tamworth"
+      ]
+    },
+    "redditch": {
+      "canal": [
+        "gloucester",
+        "oxford"
+      ],
+      "rail": [
+        "birmingham",
+        "gloucester",
+        "oxford"
+      ]
+    },
+    "shrewsbury": {
+      "canal": [
+        "coalbrookdale"
+      ],
+      "rail": [
+        "coalbrookdale"
+      ]
+    },
+    "gloucester": {
+      "canal": [
+        "redditch",
+        "worcester"
+      ],
+      "rail": [
+        "redditch",
+        "worcester"
+      ]
+    },
+    "oxford": {
+      "canal": [
+        "birmingham",
+        "redditch"
+      ],
+      "rail": [
+        "birmingham",
+        "redditch"
+      ]
+    },
+    "warrington": {
+      "canal": [
+        "stokeOnTrent"
+      ],
+      "rail": [
+        "stokeOnTrent"
+      ]
+    },
+    "nottingham": {
+      "canal": [
+        "derby"
+      ],
+      "rail": [
+        "derby"
+      ]
+    },
+    "farmBreweryNorth": {
+      "canal": [
+        "cannock"
+      ],
+      "rail": [
+        "cannock"
+      ]
+    },
+    "farmBrewerySouth": {
+      "canal": [
+        "kidderminster",
+        "worcester"
+      ],
+      "rail": [
+        "kidderminster",
+        "worcester"
+      ]
+    }
+  },
+  "responsive_layout": {
+    "version": "responsive-topology-v3",
+    "coordinate_mode": "computed_at_runtime",
+    "source_of_truth": "Relative board topology from the supplied Brass: Birmingham board image",
+    "profile_selector": [
+      {
+        "profile": "square",
+        "when": {
+          "aspect_ratio_max": 1.34
+        }
+      },
+      {
+        "profile": "landscape",
+        "when": {
+          "aspect_ratio_min": 1.35
+        }
+      }
+    ],
+    "layout_engine_contract": {
+      "family": "constraint_layered",
+      "recommended_implementations": [
+        "ELK layered",
+        "Dagre with rank locks plus obstacle-aware routing"
+      ],
+      "do_not_use": [
+        "unconstrained force-directed layout",
+        "straight-line edge rendering",
+        "fixed pixel coordinates",
+        "non-uniform scaling of a precomputed board"
+      ],
+      "required_capabilities": [
+        "rank assignment",
+        "stable within-rank ordering",
+        "node collision avoidance",
+        "edge obstacle avoidance",
+        "hyperedge or junction support"
+      ]
+    },
+    "units": {
+      "type": "node_relative",
+      "description": "All spacing values are multiples of the median rendered node height."
+    },
+    "node_sizing": {
+      "mode": "content_aware",
+      "min_width_by_type": {
+        "industry_location": 1.65,
+        "merchant_location": 1.35,
+        "farm_brewery_location": 0.55
+      },
+      "height_by_type": {
+        "industry_location": 1.0,
+        "merchant_location": 0.82,
+        "farm_brewery_location": 0.55
+      },
+      "width_growth_per_extra_industry_slot": 0.34,
+      "never_shrink_below_minimum": true
+    },
+    "global_constraints": {
+      "preserve_rank_order": true,
+      "allow_rank_reflow_only_on_profile_change": true,
+      "node_overlap": "forbidden",
+      "edge_through_node": "forbidden_except_endpoint",
+      "crossing_is_junction": false,
+      "minimum_node_gap": 0.42,
+      "minimum_rank_gap": 0.92,
+      "minimum_edge_to_node_gap": 0.2,
+      "outer_padding": 0.45,
+      "center_graph_in_viewport": true
+    },
+    "profiles": {
+      "square": {
+        "primary_flow": "top_to_bottom",
+        "fit_strategy": "balanced_height_and_width",
+        "ranks": [
+          {
+            "id": "sq-rank-0",
+            "nodes": [
+              "warrington",
+              "stokeOnTrent",
+              "leek",
+              "belper",
+              "nottingham"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "sq-rank-1",
+            "nodes": [
+              "stone",
+              "stafford",
+              "uttoxeter",
+              "derby"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "sq-rank-2",
+            "nodes": [
+              "shrewsbury",
+              "coalbrookdale",
+              "wolverhampton",
+              "farmBreweryNorth",
+              "cannock"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "sq-rank-3",
+            "nodes": [
+              "dudley",
+              "walsall",
+              "burtonUponTrent",
+              "tamworth",
+              "nuneaton"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "sq-rank-4",
+            "nodes": [
+              "kidderminster",
+              "birmingham",
+              "coventry"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "sq-rank-5",
+            "nodes": [
+              "farmBrewerySouth",
+              "worcester",
+              "gloucester",
+              "redditch",
+              "oxford"
+            ],
+            "order_locked": true
+          }
+        ],
+        "rank_spacing_multiplier": 1.08,
+        "node_spacing_multiplier": 0.94,
+        "preferred_alignment": "center",
+        "notes": "Splits the dense middle of the map into two ranks to prevent horizontal compression."
+      },
+      "landscape": {
+        "primary_flow": "top_to_bottom",
+        "fit_strategy": "use_available_width",
+        "ranks": [
+          {
+            "id": "wide-rank-0",
+            "nodes": [
+              "warrington",
+              "stokeOnTrent",
+              "leek",
+              "belper",
+              "nottingham"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "wide-rank-1",
+            "nodes": [
+              "stone",
+              "stafford",
+              "uttoxeter",
+              "derby"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "wide-rank-2",
+            "nodes": [
+              "shrewsbury",
+              "coalbrookdale",
+              "wolverhampton",
+              "farmBreweryNorth",
+              "cannock",
+              "walsall",
+              "burtonUponTrent",
+              "tamworth",
+              "nuneaton"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "wide-rank-3",
+            "nodes": [
+              "kidderminster",
+              "dudley",
+              "birmingham",
+              "coventry"
+            ],
+            "order_locked": true
+          },
+          {
+            "id": "wide-rank-4",
+            "nodes": [
+              "farmBrewerySouth",
+              "worcester",
+              "gloucester",
+              "redditch",
+              "oxford"
+            ],
+            "order_locked": true
+          }
+        ],
+        "rank_spacing_multiplier": 0.88,
+        "node_spacing_multiplier": 1.1,
+        "preferred_alignment": "center",
+        "notes": "Keeps the central corridor in one wide rank when horizontal space is available."
+      }
+    },
+    "soft_constraints": {
+      "keep_near": [
+        [
+          "warrington",
+          "stokeOnTrent"
+        ],
+        [
+          "stokeOnTrent",
+          "stone"
+        ],
+        [
+          "leek",
+          "belper"
+        ],
+        [
+          "belper",
+          "derby"
+        ],
+        [
+          "stone",
+          "stafford"
+        ],
+        [
+          "uttoxeter",
+          "derby"
+        ],
+        [
+          "shrewsbury",
+          "coalbrookdale"
+        ],
+        [
+          "coalbrookdale",
+          "wolverhampton"
+        ],
+        [
+          "wolverhampton",
+          "cannock"
+        ],
+        [
+          "cannock",
+          "farmBreweryNorth"
+        ],
+        [
+          "cannock",
+          "walsall"
+        ],
+        [
+          "walsall",
+          "burtonUponTrent"
+        ],
+        [
+          "burtonUponTrent",
+          "tamworth"
+        ],
+        [
+          "tamworth",
+          "nuneaton"
+        ],
+        [
+          "dudley",
+          "kidderminster"
+        ],
+        [
+          "dudley",
+          "birmingham"
+        ],
+        [
+          "birmingham",
+          "coventry"
+        ],
+        [
+          "farmBrewerySouth",
+          "kidderminster"
+        ],
+        [
+          "farmBrewerySouth",
+          "worcester"
+        ],
+        [
+          "worcester",
+          "gloucester"
+        ],
+        [
+          "redditch",
+          "oxford"
+        ]
+      ],
+      "prefer_vertical_alignment": [
+        [
+          "stokeOnTrent",
+          "stone"
+        ],
+        [
+          "belper",
+          "derby"
+        ],
+        [
+          "stone",
+          "stafford"
+        ],
+        [
+          "derby",
+          "burtonUponTrent"
+        ],
+        [
+          "stafford",
+          "cannock"
+        ],
+        [
+          "burtonUponTrent",
+          "tamworth"
+        ],
+        [
+          "tamworth",
+          "nuneaton"
+        ],
+        [
+          "wolverhampton",
+          "dudley"
+        ],
+        [
+          "dudley",
+          "kidderminster"
+        ],
+        [
+          "walsall",
+          "birmingham"
+        ],
+        [
+          "nuneaton",
+          "coventry"
+        ],
+        [
+          "kidderminster",
+          "farmBrewerySouth"
+        ],
+        [
+          "birmingham",
+          "redditch"
+        ]
+      ],
+      "preserve_left_to_right": [
+        [
+          "warrington",
+          "stokeOnTrent",
+          "leek",
+          "belper",
+          "nottingham"
+        ],
+        [
+          "stone",
+          "stafford",
+          "uttoxeter",
+          "derby"
+        ],
+        [
+          "shrewsbury",
+          "coalbrookdale",
+          "wolverhampton",
+          "farmBreweryNorth",
+          "cannock",
+          "walsall",
+          "burtonUponTrent",
+          "tamworth",
+          "nuneaton"
+        ],
+        [
+          "kidderminster",
+          "dudley",
+          "birmingham",
+          "coventry"
+        ],
+        [
+          "farmBrewerySouth",
+          "worcester",
+          "gloucester",
+          "redditch",
+          "oxford"
+        ]
+      ]
+    },
+    "edge_routing": {
+      "style": "orthogonal_or_spline",
+      "choose_style_by_engine": true,
+      "obstacle_avoidance": true,
+      "clip_to_rendered_node_bounds": true,
+      "port_policy": "derive_from_relative_rank_and_order",
+      "parallel_edge_lane_separation": 0.16,
+      "crossing_render_style": "bridge_or_gap",
+      "bend_penalty": 1.0,
+      "crossing_penalty": 2.8,
+      "node_intersection_penalty": 1000,
+      "shared_segment_policy": "allowed_only_for_visual_bundling_without_graph_merge",
+      "special_edges": {
+        "kidderminster__worcester__farmBrewerySouth": {
+          "routing": "single_three_way_junction",
+          "junction_position": "computed_from_endpoint_barycenter",
+          "junction_visible": false,
+          "one_link_space_only": true
+        }
+      }
+    },
+    "runtime_algorithm": [
+      "Select profile from viewport aspect ratio.",
+      "Measure actual node sizes after labels and icons render.",
+      "Assign nodes to profile ranks and preserve the listed order.",
+      "Solve rank widths using measured node sizes and relative spacing.",
+      "Center shorter ranks; do not stretch nodes to fill the row.",
+      "Route edges after node placement with node rectangles as obstacles.",
+      "If any edge intersects a non-endpoint node, reroute the edge; never move the node across its rank order.",
+      "Scale the completed layout uniformly only if the solved graph still exceeds the viewport."
+    ]
+  }
+}

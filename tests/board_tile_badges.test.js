@@ -38,9 +38,13 @@ const context = {
 };
 vm.createContext(context);
 
+const graphSource = fs.readFileSync(path.join(repoRoot, 'js', 'boardGraphSource.js'), 'utf8');
 const gameData = fs.readFileSync(path.join(repoRoot, 'js', 'gameData.js'), 'utf8');
 const boardRenderer = fs.readFileSync(path.join(repoRoot, 'js', 'boardRenderer.js'), 'utf8');
-vm.runInContext(`${gameData}\n${boardRenderer}\nglobalThis.BoardRenderer = BoardRenderer; globalThis.INDUSTRY_TYPES = INDUSTRY_TYPES;`, context);
+vm.runInContext(
+    `${graphSource}\n${gameData}\n${boardRenderer}\nglobalThis.BoardRenderer = BoardRenderer; globalThis.INDUSTRY_TYPES = INDUSTRY_TYPES;`,
+    context
+);
 
 function createRenderer() {
     const renderer = new context.BoardRenderer(createFakeElement('svg'));
@@ -94,8 +98,8 @@ function testUnflippedResourceTilesShowRemainingCountBadge() {
         node => node.tagName === 'circle' && node.attrs && node.attrs.fill === '#c9a84c' && node.attrs.r === '6'
     );
     assert.equal(countBadges.length, 1);
-    assert.equal(countBadges[0].attrs.cx, '17');
-    assert.equal(countBadges[0].attrs.cy, '17');
+    assert.equal(countBadges[0].attrs.cx, '25');
+    assert.equal(countBadges[0].attrs.cy, '25');
 
     const countTexts = collectNodes(renderer.svg, node => node.tagName === 'text' && String(node.textContent) === '3');
     assert.equal(countTexts.length, 1);

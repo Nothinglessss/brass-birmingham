@@ -77,6 +77,7 @@ class GameState {
             colorName: PLAYER_NAMES[index],
             money: INITIAL_MONEY_BY_PLAYERS[this.numPlayers] ?? INITIAL_MONEY,
             income: INITIAL_INCOME,
+            incomePosition: lowestTrackPositionForIncomeLevel(INITIAL_INCOME),
             vp: 0,
             hand: [],
             industryTiles: industryTiles,
@@ -88,12 +89,10 @@ class GameState {
 
     initMerchants() {
         const tiles = [];
-        // Add merchant tiles based on player count
         for (let p = 2; p <= this.numPlayers; p++) {
             if (MERCHANT_TILES[p]) {
                 for (const tile of MERCHANT_TILES[p]) {
                     tiles.push({
-                        location: tile.location,
                         buys: tile.buys,
                         hasBeer: true,
                         bonusClaimed: false,
@@ -101,9 +100,21 @@ class GameState {
                 }
             }
         }
-        // Shuffle merchant tiles
+
         this.shuffleArray(tiles);
-        this.merchantTiles = tiles;
+
+        const spaces = [];
+        for (const [location, merchant] of Object.entries(MERCHANTS)) {
+            if (merchant.minPlayers > this.numPlayers) continue;
+            for (let i = 0; i < merchant.slots; i++) {
+                spaces.push(location);
+            }
+        }
+
+        this.merchantTiles = spaces.map((location, index) => ({
+            ...tiles[index],
+            location,
+        }));
     }
 
     initDeck() {
@@ -185,9 +196,23 @@ class GameState {
     // Income track helpers
     // ========================================================================
 
-    adjustIncome(playerId, amount) {
+    advanceIncomeBySpaces(playerId, spaces) {
         const player = this.players[playerId];
-        player.income = Math.min(MAX_INCOME, Math.max(MIN_INCOME, player.income + amount));
+        const currentPosition = player.incomePosition ?? lowestTrackPositionForIncomeLevel(player.income);
+        player.incomePosition = Math.min(
+            INCOME_TRACK_LEVELS.length - 1,
+            Math.max(0, currentPosition + spaces)
+        );
+        player.income = incomeLevelFromTrackPosition(player.incomePosition);
+    }
+
+    decreaseIncomeByLevels(playerId, levels) {
+        const player = this.players[playerId];
+        const currentPosition = player.incomePosition ?? lowestTrackPositionForIncomeLevel(player.income);
+        const currentIncome = incomeLevelFromTrackPosition(currentPosition);
+        const targetIncome = Math.max(MIN_INCOME, currentIncome - levels);
+        player.incomePosition = highestTrackPositionForIncomeLevel(targetIncome);
+        player.income = targetIncome;
     }
 
     getIncomeAmount(income) {
@@ -199,14 +224,14 @@ class GameState {
     // ========================================================================
 
     getCoalPrice() {
-        if (this.coalMarket <= 0) return Infinity;
+        if (this.coalMarket <= 0) return 8;
         // Price is based on which space the next coal would come from
         const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket;
         return COAL_MARKET_PRICES[spaceIndex] || Infinity;
     }
 
     getIronPrice() {
-        if (this.ironMarket <= 0) return Infinity;
+        if (this.ironMarket <= 0) return 6;
         const spaceIndex = IRON_MARKET_PRICES.length - this.ironMarket;
         return IRON_MARKET_PRICES[spaceIndex] || Infinity;
     }
@@ -234,19 +259,31 @@ class GameState {
     }
 
     sellCoalToMarket(count) {
+        let sold = 0;
+        let revenue = 0;
         for (let i = 0; i < count; i++) {
             if (this.coalMarket < COAL_MARKET_PRICES.length) {
+                const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket - 1;
+                revenue += COAL_MARKET_PRICES[spaceIndex] || 0;
                 this.coalMarket++;
+                sold++;
             }
         }
+        return { sold, revenue };
     }
 
     sellIronToMarket(count) {
+        let sold = 0;
+        let revenue = 0;
         for (let i = 0; i < count; i++) {
             if (this.ironMarket < IRON_MARKET_PRICES.length) {
+                const spaceIndex = IRON_MARKET_PRICES.length - this.ironMarket - 1;
+                revenue += IRON_MARKET_PRICES[spaceIndex] || 0;
                 this.ironMarket++;
+                sold++;
             }
         }
+        return { sold, revenue };
     }
 
     // ========================================================================
@@ -376,13 +413,23 @@ class GameState {
         // Sort by distance (nearest first)
         sources.sort((a, b) => a.distance - b.distance);
 
-        // Add one market entry per available coal cube so callers needing 2+ coal see enough entries
-        for (let i = 0; i < this.coalMarket; i++) {
-            const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket + i;
-            sources.push({ type: 'market', price: COAL_MARKET_PRICES[spaceIndex] || Infinity, free: false });
+        // Coal from the market requires a connection to an external merchant location.
+        if (this.isConnectedToMerchant(locationId)) {
+            for (let i = 0; i < this.coalMarket; i++) {
+                const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket + i;
+                sources.push({ type: 'market', price: COAL_MARKET_PRICES[spaceIndex] || Infinity, free: false });
+            }
         }
 
         return sources;
+    }
+
+    isConnectedToMerchant(locationId) {
+        const connected = this.getConnectedLocations(locationId);
+        for (const loc of connected) {
+            if (isMerchantLocation(loc)) return true;
+        }
+        return false;
     }
 
     // Find iron source: any unflipped iron works (no connection needed), or market
@@ -499,7 +546,7 @@ class GameState {
         if (tile.flipped) return;
         tile.flipped = true;
         // Increase income
-        this.adjustIncome(tile.playerId, tile.tileData.income);
+        this.advanceIncomeBySpaces(tile.playerId, tile.tileData.income);
     }
 
     // ========================================================================
@@ -585,12 +632,12 @@ class GameState {
             }
         }
 
-        // Determine turn order: player who spent MOST goes first next round
+        // Determine turn order: player who spent LEAST goes first next round
         // Ties broken by current turn order (earlier player goes first)
         this.turnOrder.sort((a, b) => {
             const spentA = this.moneySpentThisRound[a] || 0;
             const spentB = this.moneySpentThisRound[b] || 0;
-            if (spentA !== spentB) return spentB - spentA; // More spending = earlier turn
+            if (spentA !== spentB) return spentA - spentB; // Less spending = earlier turn
             return 0; // Maintain current relative order for ties
         });
 
@@ -628,11 +675,19 @@ class GameState {
             }
         }
 
-        // Remove all industry tiles from board (all levels, flipped or not)
-        this.boardIndustries = {};
+        // Remove only obsolete level 1 industry tiles; level 2+ carry over to Rail Era.
+        for (const [key, tile] of Object.entries(this.boardIndustries)) {
+            if (tile.tileData.level === 1) {
+                delete this.boardIndustries[key];
+            }
+        }
 
-        // Remove all brewery farm tiles
-        this.breweryFarmTiles = {};
+        // Remove only obsolete level 1 brewery farm tiles.
+        for (const [farmId, tile] of Object.entries(this.breweryFarmTiles)) {
+            if (tile.tileData.level === 1) {
+                delete this.breweryFarmTiles[farmId];
+            }
+        }
 
         // Transition to rail era
         this.era = ERA.RAIL;
@@ -645,6 +700,7 @@ class GameState {
         // Restock merchant beer
         for (const mt of this.merchantTiles) {
             mt.hasBeer = true;
+            mt.bonusClaimed = false;
         }
 
         // Return any wild cards from player hands before clearing
@@ -833,6 +889,7 @@ class GameState {
                 name: p.name,
                 money: p.money,
                 income: p.income,
+                incomePosition: p.incomePosition,
                 vp: p.vp,
                 handSize: p.hand.length,
                 linksRemaining: p.linksRemaining,

@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = __dirname;
 const context = { console };
 vm.createContext(context);
 
