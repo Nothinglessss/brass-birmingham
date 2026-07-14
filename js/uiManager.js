@@ -24,6 +24,13 @@ class UIManager {
         this.pendingData = {}; // Data accumulated during multi-step actions
         this.gameLog = []; // Game log entries
         this.previousPlayerId = null; // Track player changes for transitions
+        this.isBoardFullscreen = false;
+        this.defaultBoardPreserveAspectRatio = null;
+        this.defaultBoardViewBox = null;
+        this.defaultBoardViewBoxParts = null;
+        this.handleBoardFullscreenResize = () => {
+            if (this.isBoardFullscreen) this.updateBoardFullscreenViewBox();
+        };
     }
 
     init(gameState, gameLogic, boardRenderer) {
@@ -58,6 +65,10 @@ class UIManager {
         document.getElementById('game-board').addEventListener('click', (e) => {
             this.onBoardClick(e);
         });
+        this.bindBoardFullscreenToggle();
+        if (typeof window !== 'undefined' && window.addEventListener) {
+            window.addEventListener('resize', this.handleBoardFullscreenResize);
+        }
 
         // Phase bar cancel button
         document.getElementById('phase-cancel-btn').addEventListener('click', () => {
@@ -67,11 +78,104 @@ class UIManager {
         // Escape key to cancel action
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                if (this.selectedAction) {
+                if (this.isBoardFullscreen) {
+                    this.toggleBoardFullscreen(false);
+                } else if (this.selectedAction) {
                     this.cancelAction();
                 }
             }
         });
+    }
+
+    bindBoardFullscreenToggle() {
+        const toggle = document.getElementById('board-fullscreen-toggle');
+        if (!toggle) return;
+
+        toggle.addEventListener('click', () => {
+            this.toggleBoardFullscreen();
+        });
+    }
+
+    parseViewBox(value) {
+        const parts = String(value || '').trim().split(/\s+/).map(Number);
+        if (parts.length !== 4 || parts.some(part => !Number.isFinite(part))) {
+            return [0, 0, 900, 850];
+        }
+        return parts;
+    }
+
+    formatSvgNumber(value) {
+        return Number(value.toFixed(2)).toString();
+    }
+
+    ensureBoardSvgDefaults(board) {
+        if (!board) return;
+        if (this.defaultBoardPreserveAspectRatio === null) {
+            this.defaultBoardPreserveAspectRatio = board.getAttribute('preserveAspectRatio') || 'xMidYMid meet';
+        }
+        if (this.defaultBoardViewBox === null) {
+            this.defaultBoardViewBox = board.getAttribute('viewBox') || '0 0 900 850';
+            this.defaultBoardViewBoxParts = this.parseViewBox(this.defaultBoardViewBox);
+        }
+    }
+
+    redrawBoardForLayoutChange() {
+        if (!this.renderer) return;
+        if (typeof this.renderer.render === 'function') {
+            this.renderer.render(this.state);
+        } else if (typeof this.renderer.fullUpdate === 'function') {
+            this.renderer.fullUpdate(this.state);
+        }
+    }
+
+    updateBoardFullscreenViewBox() {
+        const container = document.getElementById('board-container');
+        const board = document.getElementById('game-board');
+        if (!container || !board) return;
+
+        this.ensureBoardSvgDefaults(board);
+        const rect = container.getBoundingClientRect ? container.getBoundingClientRect() : {};
+        const viewportWidth = rect.width || container.clientWidth ||
+            (typeof window !== 'undefined' ? window.innerWidth : this.defaultBoardViewBoxParts[2]);
+        const viewportHeight = rect.height || container.clientHeight ||
+            (typeof window !== 'undefined' ? window.innerHeight : this.defaultBoardViewBoxParts[3]);
+        if (!viewportWidth || !viewportHeight) return null;
+
+        const viewport = { width: viewportWidth, height: viewportHeight };
+        board.setAttribute('viewBox', `0 0 ${this.formatSvgNumber(viewport.width)} ${this.formatSvgNumber(viewport.height)}`);
+        if (this.renderer && typeof this.renderer.setLayoutMode === 'function') {
+            this.renderer.setLayoutMode('fullscreen', viewport);
+            this.redrawBoardForLayoutChange();
+        }
+        return viewport;
+    }
+
+    toggleBoardFullscreen(forceState = null) {
+        const container = document.getElementById('board-container');
+        const toggle = document.getElementById('board-fullscreen-toggle');
+        const board = document.getElementById('game-board');
+        if (!container || !toggle) return;
+        this.ensureBoardSvgDefaults(board);
+
+        const isFullscreen = forceState === null ? !this.isBoardFullscreen : forceState;
+        this.isBoardFullscreen = isFullscreen;
+
+        container.classList.toggle('board-fullscreen', isFullscreen);
+        toggle.classList.toggle('is-fullscreen', isFullscreen);
+        toggle.setAttribute('aria-label', isFullscreen ? 'Collapse map' : 'Expand map to full screen');
+        toggle.setAttribute('title', isFullscreen ? 'Collapse map' : 'Expand map');
+        if (board) {
+            board.setAttribute('preserveAspectRatio', this.defaultBoardPreserveAspectRatio);
+            if (isFullscreen) {
+                this.updateBoardFullscreenViewBox();
+            } else {
+                board.setAttribute('viewBox', this.defaultBoardViewBox);
+                if (this.renderer && typeof this.renderer.setLayoutMode === 'function') {
+                    this.renderer.setLayoutMode('normal', null);
+                    this.redrawBoardForLayoutChange();
+                }
+            }
+        }
     }
 
     // ========================================================================
