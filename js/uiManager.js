@@ -1150,8 +1150,12 @@ class UIManager {
         this.sellSession ||= { committed: false, messages: [] };
         const targets = this.logic.getValidSellTargets(playerId);
         if (targets.length === 0) {
-            this.showToast('Nothing to sell', 'warning');
-            this.cancelAction();
+            if (this.sellSession.committed) {
+                this.finishSellAction();
+            } else {
+                this.showToast('Nothing to sell', 'warning');
+                this.cancelAction();
+            }
             return;
         }
 
@@ -1159,7 +1163,7 @@ class UIManager {
         this.renderer.setMerchantProductFilter(sellTypes.length === 1 ? sellTypes[0] : null);
 
         const instruction = this.sellSession.committed
-            ? 'Select an industry to sell, or finish the action.'
+            ? 'Select another industry to sell, including a different type, or finish the action.'
             : 'Select one industry to sell.';
         let html = `<p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">${instruction}</p>`;
         html += '<div class="choice-list">';

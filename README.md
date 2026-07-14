@@ -168,6 +168,7 @@ This implementation follows the official Brass: Birmingham rulebook:
 - **Coal** requires a connected source (mine or market via merchant link)
 - **Iron** can be taken from any iron works on the board — no connection needed
 - **Beer** for selling comes from your own breweries (anywhere), connected opponent breweries, or merchant barrels
+- **Sell** may repeat within one action for any eligible tiles, including tiles from different industries; only one card is discarded for the action
 - **Overbuilding** your own tiles requires same type + higher level; opponent coal/iron tiles can only be overbuilt when that resource is globally depleted
 - **Pottery I and III** have the lightbulb icon and cannot be developed — they must be built
 - **Turn order** each round goes to whoever spent the least money
