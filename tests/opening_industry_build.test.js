@@ -7,7 +7,13 @@ const repoRoot = path.resolve(__dirname, '..');
 const context = { console };
 vm.createContext(context);
 
-for (const file of ['js/boardGraphSource.js', 'js/gameData.js', 'js/gameState.js', 'js/gameLogic.js']) {
+for (const file of [
+    'js/boardGraphSource.js',
+    'js/gameData.js',
+    'js/gameState.js',
+    'js/resourcePlanner.js',
+    'js/gameLogic.js',
+]) {
     vm.runInContext(fs.readFileSync(path.join(repoRoot, file), 'utf8'), context);
 }
 vm.runInContext(

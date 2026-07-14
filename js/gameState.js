@@ -89,12 +89,10 @@ class GameState {
 
     initMerchants() {
         const tiles = [];
-        // Add merchant tiles based on player count
         for (let p = 2; p <= this.numPlayers; p++) {
             if (MERCHANT_TILES[p]) {
                 for (const tile of MERCHANT_TILES[p]) {
                     tiles.push({
-                        location: tile.location,
                         buys: tile.buys,
                         hasBeer: true,
                         bonusClaimed: false,
@@ -102,9 +100,21 @@ class GameState {
                 }
             }
         }
-        // Shuffle merchant tiles
+
         this.shuffleArray(tiles);
-        this.merchantTiles = tiles;
+
+        const spaces = [];
+        for (const [location, merchant] of Object.entries(MERCHANTS)) {
+            if (merchant.minPlayers > this.numPlayers) continue;
+            for (let i = 0; i < merchant.slots; i++) {
+                spaces.push(location);
+            }
+        }
+
+        this.merchantTiles = spaces.map((location, index) => ({
+            ...tiles[index],
+            location,
+        }));
     }
 
     initDeck() {
@@ -214,14 +224,14 @@ class GameState {
     // ========================================================================
 
     getCoalPrice() {
-        if (this.coalMarket <= 0) return Infinity;
+        if (this.coalMarket <= 0) return 8;
         // Price is based on which space the next coal would come from
         const spaceIndex = COAL_MARKET_PRICES.length - this.coalMarket;
         return COAL_MARKET_PRICES[spaceIndex] || Infinity;
     }
 
     getIronPrice() {
-        if (this.ironMarket <= 0) return Infinity;
+        if (this.ironMarket <= 0) return 6;
         const spaceIndex = IRON_MARKET_PRICES.length - this.ironMarket;
         return IRON_MARKET_PRICES[spaceIndex] || Infinity;
     }
@@ -415,7 +425,11 @@ class GameState {
     }
 
     isConnectedToMerchant(locationId) {
-        return this.getConnectedLocations(locationId).some(isMerchantLocation);
+        const connected = this.getConnectedLocations(locationId);
+        for (const loc of connected) {
+            if (isMerchantLocation(loc)) return true;
+        }
+        return false;
     }
 
     // Find iron source: any unflipped iron works (no connection needed), or market
@@ -686,6 +700,7 @@ class GameState {
         // Restock merchant beer
         for (const mt of this.merchantTiles) {
             mt.hasBeer = true;
+            mt.bonusClaimed = false;
         }
 
         // Return any wild cards from player hands before clearing

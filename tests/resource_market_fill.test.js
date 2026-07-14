@@ -6,51 +6,86 @@ const vm = require('node:vm');
 const repoRoot = path.resolve(__dirname, '..');
 const context = { console };
 vm.createContext(context);
-for (const file of ['js/boardGraphSource.js', 'js/gameData.js', 'js/gameState.js', 'js/gameLogic.js']) {
-    vm.runInContext(fs.readFileSync(path.join(repoRoot, file), 'utf8'), context);
-}
+
+const graphSource = fs.readFileSync(path.join(repoRoot, 'js', 'boardGraphSource.js'), 'utf8');
+const gameData = fs.readFileSync(path.join(repoRoot, 'js', 'gameData.js'), 'utf8');
+const gameState = fs.readFileSync(path.join(repoRoot, 'js', 'gameState.js'), 'utf8');
+const resourcePlanner = fs.readFileSync(path.join(repoRoot, 'js', 'resourcePlanner.js'), 'utf8');
+const gameLogic = fs.readFileSync(path.join(repoRoot, 'js', 'gameLogic.js'), 'utf8');
 vm.runInContext(
-    'globalThis.GameState = GameState; globalThis.GameLogic = GameLogic; ' +
-    'globalThis.INDUSTRY_TYPES = INDUSTRY_TYPES;',
+    `${graphSource}
+${gameData}\n${gameState}\n${resourcePlanner}\n${gameLogic}\n` +
+    `globalThis.GameState = GameState; globalThis.GameLogic = GameLogic; ` +
+    `globalThis.INDUSTRY_TYPES = INDUSTRY_TYPES; globalThis.CARD_TYPES = CARD_TYPES;`,
     context
 );
 
-function makeTile(type, cubes) {
-    return {
-        playerId: 0,
-        type,
-        tileData: { level: 1, income: 0, vp: 0, linkVP: 0 },
-        flipped: false,
-        resourceCubes: cubes,
-    };
+function createGame() {
+    const game = new context.GameState(3, ['Ada', 'Ben', 'Cy']);
+    game.players[0].money = 100;
+    return game;
 }
 
-{
-    const game = new context.GameState(2, ['Ada', 'Ben']);
+function buildWithLocationCard(game, logic, cityId, slotIndex, industryType) {
+    game.players[0].hand = [{ type: context.CARD_TYPES.LOCATION, location: cityId, name: cityId }];
+    const result = logic.executeBuild(0, cityId, slotIndex, industryType, 0);
+    assert.equal(result.success, true, result.message);
+}
+
+function testNewIronWorksImmediatelyFillsEmptyIronMarketSlots() {
+    const game = createGame();
     const logic = new context.GameLogic(game);
+
     game.ironMarket = 8;
-    game.boardIndustries.birmingham_0 = makeTile(context.INDUSTRY_TYPES.IRON_WORKS, 4);
-    const before = game.players[0].money;
-    logic.sellNewResourceTileToMarket(0, 'birmingham', 'birmingham_0');
+    game.boardIndustries.dudley_0 = {
+        playerId: 1,
+        type: context.INDUSTRY_TYPES.COAL_MINE,
+        tileData: { level: 1, income: 0 },
+        flipped: false,
+        resourceCubes: 1,
+    };
+
+    buildWithLocationCard(game, logic, 'dudley', 1, context.INDUSTRY_TYPES.IRON_WORKS);
+
+    const tile = game.boardIndustries.dudley_1;
     assert.equal(game.ironMarket, 10);
-    assert.equal(game.boardIndustries.birmingham_0.resourceCubes, 2);
-    assert.ok(game.players[0].money > before);
+    assert.equal(tile.resourceCubes, 2);
+    assert.equal(tile.flipped, false);
+    assert.equal(game.players[0].money, 97);
 }
 
-{
-    const game = new context.GameState(2, ['Ada', 'Ben']);
+function testNewConnectedCoalMineImmediatelyFillsEmptyCoalMarketSlots() {
+    const game = createGame();
     const logic = new context.GameLogic(game);
-    game.coalMarket = 12;
-    game.boardIndustries.dudley_0 = makeTile(context.INDUSTRY_TYPES.COAL_MINE, 4);
-    game.isConnectedToMerchant = () => false;
-    logic.sellNewResourceTileToMarket(0, 'dudley', 'dudley_0');
-    assert.equal(game.coalMarket, 12);
-    assert.equal(game.boardIndustries.dudley_0.resourceCubes, 4);
 
-    game.isConnectedToMerchant = () => true;
-    logic.sellNewResourceTileToMarket(0, 'dudley', 'dudley_0');
+    game.coalMarket = 12;
+    game.boardLinks['coalbrookdale-shrewsbury'] = { playerId: 1, type: 'canal' };
+
+    buildWithLocationCard(game, logic, 'coalbrookdale', 2, context.INDUSTRY_TYPES.COAL_MINE);
+
+    const tile = game.boardIndustries.coalbrookdale_2;
     assert.equal(game.coalMarket, 14);
-    assert.equal(game.boardIndustries.dudley_0.resourceCubes, 2);
+    assert.equal(tile.resourceCubes, 0);
+    assert.equal(tile.flipped, true);
+    assert.equal(game.players[0].money, 97);
 }
 
+function testNewUnconnectedCoalMineDoesNotFillCoalMarketSlots() {
+    const game = createGame();
+    const logic = new context.GameLogic(game);
+
+    game.coalMarket = 12;
+
+    buildWithLocationCard(game, logic, 'coalbrookdale', 2, context.INDUSTRY_TYPES.COAL_MINE);
+
+    const tile = game.boardIndustries.coalbrookdale_2;
+    assert.equal(game.coalMarket, 12);
+    assert.equal(tile.resourceCubes, 2);
+    assert.equal(tile.flipped, false);
+    assert.equal(game.players[0].money, 95);
+}
+
+testNewIronWorksImmediatelyFillsEmptyIronMarketSlots();
+testNewConnectedCoalMineImmediatelyFillsEmptyCoalMarketSlots();
+testNewUnconnectedCoalMineDoesNotFillCoalMarketSlots();
 console.log('resource market fill tests passed');

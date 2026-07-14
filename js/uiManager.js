@@ -22,6 +22,7 @@ class UIManager {
         this.selectedCard = null;
         this.actionStep = 0; // Multi-step action tracking
         this.pendingData = {}; // Data accumulated during multi-step actions
+        this.sellSession = null; // One-card Sell action spanning sequential industries
         this.gameLog = []; // Game log entries
         this.previousPlayerId = null; // Track player changes for transitions
     }
@@ -150,7 +151,7 @@ class UIManager {
 
         const player = this.state.currentPlayer;
         const playerId = this.state.currentPlayerId;
-        const inCardSelectMode = this.actionStep > 0 && this.selectedAction;
+        const inCardSelectMode = this.actionStep >= 2 && this.selectedAction;
 
         // Get valid card indices for current action
         let validCardIndices = null;
@@ -349,8 +350,11 @@ class UIManager {
         if (this.selectedAction && this.actionStep === 0) {
             currentStep = 2; // Select Target
             instructionText = this.getTargetInstruction();
-        } else if (this.actionStep > 0) {
-            currentStep = 3; // Discard Card
+        } else if (this.actionStep === 1) {
+            currentStep = 3; // Select Resources
+            instructionText = 'Choose which resource source to consume';
+        } else if (this.actionStep >= 2) {
+            currentStep = 4; // Discard Card
             if (this.selectedAction === ACTIONS.SCOUT) {
                 const remaining = 3 - (this.pendingData.scoutCards?.length || 0);
                 instructionText = `Select ${remaining} card${remaining !== 1 ? 's' : ''} to discard`;
@@ -383,6 +387,162 @@ class UIManager {
             case ACTIONS.PASS: return 'Select a card to discard';
             default: return '';
         }
+    }
+
+    beginResourcePlanning(targetData) {
+        this.pendingData = {
+            ...targetData,
+            resourceSelections: [],
+        };
+        this.actionStep = 1;
+        this.advanceResourcePlanning();
+    }
+
+    getPendingResourcePlan() {
+        const selections = this.pendingData.resourceSelections || [];
+        const playerId = this.state?.currentPlayerId ?? 0;
+        switch (this.selectedAction) {
+            case ACTIONS.BUILD:
+                return this.logic.planBuildResources({
+                    playerId,
+                    cityId: this.pendingData.cityId,
+                    slotIndex: this.pendingData.slotIndex,
+                    industryType: this.pendingData.industryType,
+                }, selections);
+            case ACTIONS.NETWORK:
+                return this.logic.planNetworkResources({
+                    playerId,
+                    connectionIds: Array.isArray(this.pendingData.connectionId)
+                        ? this.pendingData.connectionId
+                        : [this.pendingData.connectionId],
+                }, selections);
+            case ACTIONS.DEVELOP:
+                return this.logic.planDevelopResources({
+                    playerId,
+                    industryTypes: this.pendingData.industryType2
+                        ? [this.pendingData.industryType1, this.pendingData.industryType2]
+                        : [this.pendingData.industryType1],
+                }, selections);
+            case ACTIONS.SELL:
+                return this.logic.planSellResources({
+                    playerId,
+                    tileKey: this.pendingData.tileKey,
+                    merchantIndex: this.pendingData.merchantIndex,
+                }, selections);
+            default:
+                return { status: 'complete', consumptions: [], marketCost: 0 };
+        }
+    }
+
+    finishResourcePlanning(plan) {
+        this.pendingData.resourcePlan = plan;
+        if (this.selectedAction === ACTIONS.SELL && this.sellSession?.committed) {
+            this.closeModal();
+            this.processAdditionalSell();
+            return;
+        }
+        this.actionStep = 2;
+        this.closeModal();
+        this.updatePhaseBar();
+        this.updateHand();
+    }
+
+    advanceResourcePlanning() {
+        const plan = this.getPendingResourcePlan();
+        if (plan.status === 'complete') {
+            this.finishResourcePlanning(plan);
+            return;
+        }
+        if (plan.status === 'choice') {
+            this.actionStep = 1;
+            this.updatePhaseBar();
+            this.showResourceChoice(plan.nextChoice);
+            return;
+        }
+
+        this.showToast(plan.message || 'Required resources are no longer available', 'error');
+        this.cancelAction();
+    }
+
+    getResourceSourceViewModel(source) {
+        const resource = source.resource;
+        if (source.sourceType === 'market') {
+            return {
+                title: source.locationName || `${resource} Market`,
+                detail: source.generalSupply
+                    ? `General supply - £${source.price}`
+                    : `Market - £${source.price}`,
+                ownerName: 'Neutral',
+                ownerColor: null,
+                bonus: '',
+            };
+        }
+        if (source.sourceType === 'merchant') {
+            const bonusLabels = {
+                vp: `VP +${source.bonusAmount}`,
+                money: `Money +£${source.bonusAmount}`,
+                income: `Income +${source.bonusAmount}`,
+                develop: 'Free Develop',
+            };
+            return {
+                title: `${source.locationName} Merchant`,
+                detail: `${source.locationName} - 1 beer available`,
+                ownerName: 'Neutral',
+                ownerColor: null,
+                bonus: bonusLabels[source.bonusType] || '',
+            };
+        }
+
+        const typeLabels = {
+            brewery: 'Brewery',
+            mine: 'Coal Mine',
+            works: 'Iron Works',
+        };
+        return {
+            title: `${source.ownerName} - ${typeLabels[source.sourceType] || 'Industry'}`,
+            detail: `${source.locationName} - ${source.available} ${resource} available`,
+            ownerName: source.ownerName,
+            ownerColor: source.ownerColor,
+            bonus: '',
+        };
+    }
+
+    renderResourceChoiceHtml(choice) {
+        let html = `
+            <div class="resource-choice-summary">
+                Choose ${choice.resource} source - ${choice.remaining} remaining
+            </div>
+            <div class="choice-list resource-choice-list">
+        `;
+        for (const source of choice.options) {
+            const view = this.getResourceSourceViewModel(source);
+            const ownerDot = view.ownerColor
+                ? `<span class="resource-owner-dot" style="background:${view.ownerColor}"></span>`
+                : '';
+            html += `
+                <div class="choice-item resource-source" data-source="${source.id}">
+                    <div class="choice-item-text">
+                        <div class="choice-item-name">${view.title}</div>
+                        <div class="choice-item-detail">${view.detail}</div>
+                        <div class="resource-owner">${ownerDot}${view.ownerName}</div>
+                    </div>
+                    ${view.bonus ? `<div class="resource-source-bonus">${view.bonus}</div>` : ''}
+                </div>
+            `;
+        }
+        html += '</div>';
+        return html;
+    }
+
+    showResourceChoice(choice) {
+        const resourceName = choice.resource.charAt(0).toUpperCase() + choice.resource.slice(1);
+        this.showModal(`Select ${resourceName} Source`, this.renderResourceChoiceHtml(choice), null);
+        document.querySelectorAll('#modal-body .resource-source').forEach(item => {
+            item.addEventListener('click', () => {
+                this.pendingData.resourceSelections.push(item.dataset.source);
+                this.advanceResourcePlanning();
+            });
+        });
     }
 
     // ========================================================================
@@ -459,6 +619,16 @@ class UIManager {
     // ========================================================================
 
     onCardClicked(index) {
+        if (this.selectedAction && this.actionStep >= 2) {
+            const target = this.selectedAction === ACTIONS.BUILD ? this.pendingData : null;
+            const validCardIndices = this.logic.getValidCardsForAction(
+                this.state.currentPlayerId,
+                this.selectedAction,
+                target
+            );
+            if (!validCardIndices.includes(index)) return;
+        }
+
         if (this.selectedCard === index) {
             this.selectedCard = null;
         } else {
@@ -467,7 +637,7 @@ class UIManager {
         this.updateHand();
 
         // If we have an action selected and this was a card selection step
-        if (this.selectedAction && this.actionStep > 0) {
+        if (this.selectedAction && this.actionStep >= 2) {
             this.processActionStep();
         }
     }
@@ -486,6 +656,9 @@ class UIManager {
         this.actionStep = 0;
         this.pendingData = {};
         this.selectedCard = null;
+        this.sellSession = action === ACTIONS.SELL
+            ? { committed: false, messages: [] }
+            : null;
 
         this.updateActionButtons();
         this.updatePhaseBar();
@@ -493,15 +666,33 @@ class UIManager {
     }
 
     cancelAction() {
+        if (this.selectedAction === ACTIONS.SELL && this.sellSession?.committed) {
+            this.finishSellAction();
+            return;
+        }
+        this.resetActionSelection();
+    }
+
+    resetActionSelection() {
         this.selectedAction = null;
         this.actionStep = 0;
         this.pendingData = {};
         this.selectedCard = null;
+        this.sellSession = null;
+        this.renderer.setMerchantProductFilter(null);
         this.renderer.clearHighlights();
         this.updateActionButtons();
         this.updateHand();
         this.updatePhaseBar();
         this.closeModal();
+    }
+
+    finishSellAction() {
+        const messages = this.sellSession?.messages || [];
+        this.completeAction({
+            success: true,
+            message: messages.join(', ') || 'Finished selling',
+        });
     }
 
     // ========================================================================
@@ -561,9 +752,11 @@ class UIManager {
         if (isResourceIndustry(industryType)) {
             return `Flip: ${tileData.resourceCubes || 0} ${this.getBuildFlipResourceName(industryType)}`;
         }
+
         if (isSellableIndustry(industryType)) {
             return `Flip: ${tileData.beersToSell || 0} beer`;
         }
+
         return '';
     }
 
@@ -585,7 +778,7 @@ class UIManager {
 
         let html = '<div class="choice-list">';
         for (const [cityId, cityTargets] of Object.entries(byCity)) {
-            const cityName = CITIES[cityId].name;
+            const cityName = CITIES[cityId]?.name || BREWERY_FARMS[cityId]?.name || cityId;
             for (const target of cityTargets) {
                 const display = INDUSTRY_DISPLAY[target.industryType];
                 const flipRequirement = this.getBuildFlipRequirementText(target.industryType, target.tileData);
@@ -595,7 +788,7 @@ class UIManager {
                         <div class="choice-item-icon">${display.icon}</div>
                         <div class="choice-item-text">
                             <div class="choice-item-name">${display.name} Lv${target.tileData.level}</div>
-                            <div class="choice-item-detail">${cityName} (Slot ${target.slotIndex + 1})</div>
+                            <div class="choice-item-detail">${cityName}${CITIES[cityId] ? ` (Slot ${target.slotIndex + 1})` : ''}</div>
                         </div>
                         <div class="choice-item-cost">
                             <div class="choice-item-build-cost">£${target.cost.total}
@@ -617,12 +810,9 @@ class UIManager {
                 const cityId = item.dataset.city;
                 const slotIndex = parseInt(item.dataset.slot);
                 const indType = item.dataset.type;
-                this.pendingData = { cityId, slotIndex, industryType: indType };
                 this.closeModal();
                 this.renderer.clearHighlights();
-                this.actionStep = 1;
-                this.updatePhaseBar();
-                this.updateHand();
+                this.beginResourcePlanning({ cityId, slotIndex, industryType: indType });
             });
         });
     }
@@ -639,18 +829,21 @@ class UIManager {
             return;
         }
 
-        this.renderer.highlightConnections(targets.map(t => t.connectionId));
+        this.renderer.highlightConnections(targets.flatMap(t => t.connectionIds || [t.connectionId]));
 
         let html = '<div class="choice-list">';
         for (const target of targets) {
-            const city1 = CITIES[target.cities[0]]?.name || MERCHANTS[target.cities[0]]?.name || target.cities[0];
-            const city2 = CITIES[target.cities[1]]?.name || MERCHANTS[target.cities[1]]?.name || target.cities[1];
+            const city1 = CITIES[target.cities[0]]?.name || MERCHANTS[target.cities[0]]?.name || BREWERY_FARMS[target.cities[0]]?.name || target.cities[0];
+            const city2 = CITIES[target.cities[1]]?.name || MERCHANTS[target.cities[1]]?.name || BREWERY_FARMS[target.cities[1]]?.name || target.cities[1];
+            const secondLabel = target.secondCities
+                ? ` + ${(CITIES[target.secondCities[0]]?.name || MERCHANTS[target.secondCities[0]]?.name || BREWERY_FARMS[target.secondCities[0]]?.name || target.secondCities[0])} - ${(CITIES[target.secondCities[1]]?.name || MERCHANTS[target.secondCities[1]]?.name || BREWERY_FARMS[target.secondCities[1]]?.name || target.secondCities[1])}`
+                : '';
             html += `
-                <div class="choice-item" data-conn="${target.connectionId}">
+                <div class="choice-item" data-conns="${(target.connectionIds || [target.connectionId]).join('|')}">
                     <div class="choice-item-icon">${target.type === 'canal' ? '~' : '#'}</div>
                     <div class="choice-item-text">
                         <div class="choice-item-name">${city1} — ${city2}</div>
-                        <div class="choice-item-detail">${target.type}</div>
+                        <div class="choice-item-detail">${target.secondCities ? `First link, then${secondLabel}` : target.type}</div>
                     </div>
                     <div class="choice-item-cost">£${target.cost}</div>
                 </div>
@@ -662,11 +855,11 @@ class UIManager {
 
         document.querySelectorAll('#modal-body .choice-item').forEach(item => {
             item.addEventListener('click', () => {
-                this.pendingData = { connectionId: item.dataset.conn };
+                const ids = item.dataset.conns.split('|');
                 this.closeModal();
-                this.actionStep = 1;
-                this.updatePhaseBar();
-                this.updateHand();
+                this.beginResourcePlanning({
+                    connectionId: ids.length === 1 ? ids[0] : ids,
+                });
             });
         });
     }
@@ -720,14 +913,21 @@ class UIManager {
             return true;
         });
 
-        const ironSources = this.state.findIronSource(playerId);
-        const canAffordTwo = ironSources.length >= 2;
+        const canAffordTwo = remainingTypes.some(candidate => {
+            const plan = this.logic.previewDevelopResources(
+                playerId,
+                [firstType, candidate.type]
+            );
+            return plan.status === 'complete' &&
+                plan.marketCost <= this.state.players[playerId].money;
+        });
 
         if (!canAffordTwo || remainingTypes.length === 0) {
             this.closeModal();
-            this.actionStep = 1;
-            this.updatePhaseBar();
-            this.updateHand();
+            this.beginResourcePlanning({
+                industryType1: firstType,
+                industryType2: null,
+            });
             return;
         }
 
@@ -753,11 +953,11 @@ class UIManager {
         document.querySelectorAll('#modal-body .choice-item').forEach(item => {
             item.addEventListener('click', () => {
                 const type2 = item.dataset.type;
-                this.pendingData.industryType2 = type2 === 'none' ? null : type2;
                 this.closeModal();
-                this.actionStep = 1;
-                this.updatePhaseBar();
-                this.updateHand();
+                this.beginResourcePlanning({
+                    industryType1: firstType,
+                    industryType2: type2 === 'none' ? null : type2,
+                });
             });
         });
     }
@@ -766,7 +966,13 @@ class UIManager {
     // SELL
     // ========================================================================
 
+    renderSellFooterHtml(canFinish) {
+        if (!canFinish) return '';
+        return '<button class="modal-btn modal-btn-primary" id="sell-done-btn">Done Selling</button>';
+    }
+
     startSell(playerId) {
+        this.sellSession ||= { committed: false, messages: [] };
         const targets = this.logic.getValidSellTargets(playerId);
         if (targets.length === 0) {
             this.showToast('Nothing to sell', 'warning');
@@ -774,17 +980,24 @@ class UIManager {
             return;
         }
 
-        let html = '<p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">Select industries to sell (you may sell multiple in one action).</p>';
+        const sellTypes = [...new Set(targets.map(target => target.tile.type))];
+        this.renderer.setMerchantProductFilter(sellTypes.length === 1 ? sellTypes[0] : null);
+
+        const instruction = this.sellSession.committed
+            ? 'Select an industry to sell, or finish the action.'
+            : 'Select one industry to sell.';
+        let html = `<p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">${instruction}</p>`;
         html += '<div class="choice-list">';
         for (const target of targets) {
             const display = INDUSTRY_DISPLAY[target.tile.type];
             const cityName = CITIES[target.cityId]?.name || target.cityId;
+            const merchantName = MERCHANTS[target.merchantLocation]?.name || target.merchantLocation;
             html += `
-                <div class="choice-item" data-key="${target.key}" data-selected="false">
+                <div class="choice-item" data-key="${target.key}" data-merchant="${target.merchantIndex}" data-selected="false">
                     <div class="choice-item-icon">${display.icon}</div>
                     <div class="choice-item-text">
                         <div class="choice-item-name">${display.name} Lv${target.tile.tileData.level}</div>
-                        <div class="choice-item-detail">${cityName} | VP: ${target.tile.tileData.vp} | Income: +${target.tile.tileData.income}
+                        <div class="choice-item-detail">${cityName} to ${merchantName} | VP: ${target.tile.tileData.vp} | Income: +${target.tile.tileData.income}
                         ${target.beerNeeded > 0 ? ` | Beer: ${target.beerNeeded}` : ''}</div>
                     </div>
                 </div>
@@ -792,34 +1005,73 @@ class UIManager {
         }
         html += '</div>';
 
-        const footer = '<button class="modal-btn modal-btn-primary" id="confirm-sell">Sell Selected</button>';
-        this.showModal('Sell Goods', html, null, footer);
+        const footerHtml = this.renderSellFooterHtml(this.sellSession.committed);
+        this.showModal('Sell Goods', html, null, footerHtml);
 
-        const selectedKeys = new Set();
+        document.getElementById('sell-done-btn')?.addEventListener('click', () => {
+            this.finishSellAction();
+        });
+
         document.querySelectorAll('#modal-body .choice-item').forEach(item => {
             item.addEventListener('click', () => {
-                const key = item.dataset.key;
-                if (selectedKeys.has(key)) {
-                    selectedKeys.delete(key);
-                    item.style.borderColor = '';
-                } else {
-                    selectedKeys.add(key);
-                    item.style.borderColor = 'var(--accent-gold)';
-                }
+                const merchantIndex = parseInt(item.dataset.merchant);
+                const target = targets.find(t =>
+                    t.key === item.dataset.key && t.merchantIndex === merchantIndex
+                );
+                this.renderer.setMerchantProductFilter(target ? target.tile.type : null);
+                this.closeModal();
+                this.beginResourcePlanning({
+                    tileKey: item.dataset.key,
+                    merchantIndex,
+                });
             });
         });
+    }
 
-        document.getElementById('confirm-sell').addEventListener('click', () => {
-            if (selectedKeys.size === 0) {
-                this.showToast('Select at least one industry to sell', 'warning');
+    processAdditionalSell() {
+        const result = this.logic.executeAdditionalSell(
+            this.state.currentPlayerId,
+            this.pendingData.tileKey,
+            this.pendingData.merchantIndex,
+            this.pendingData.resourceSelections
+        );
+        this.handleSellResult(result);
+    }
+
+    handleSellResult(result) {
+        const playerId = this.state.currentPlayerId;
+        if (!result.success) {
+            this.showToast(result.message, 'error');
+            if (!this.sellSession?.committed) {
+                this.resetActionSelection();
                 return;
             }
-            this.pendingData.tileKeys = [...selectedKeys];
-            this.closeModal();
-            this.actionStep = 1;
-            this.updatePhaseBar();
-            this.updateHand();
-        });
+            this.pendingData = {};
+            this.selectedCard = null;
+            this.actionStep = 0;
+            if (this.logic.getValidSellTargets(playerId).length > 0) {
+                this.startSell(playerId);
+            } else {
+                this.finishSellAction();
+            }
+            return;
+        }
+
+        this.addLogEntry(playerId, result.message.toLowerCase());
+        this.sellSession ||= { committed: false, messages: [] };
+        this.sellSession.committed = true;
+        this.sellSession.messages.push(result.message);
+        this.pendingData = {};
+        this.selectedCard = null;
+        this.actionStep = 0;
+
+        if (this.logic.getValidSellTargets(playerId).length === 0) {
+            this.finishSellAction();
+            return;
+        }
+        this.updatePhaseBar();
+        this.updateHand();
+        this.startSell(playerId);
     }
 
     // ========================================================================
@@ -827,7 +1079,7 @@ class UIManager {
     // ========================================================================
 
     startLoan(playerId) {
-        this.actionStep = 1;
+        this.actionStep = 2;
         this.updatePhaseBar();
         this.updateHand();
     }
@@ -838,7 +1090,7 @@ class UIManager {
 
     startScout(playerId) {
         this.pendingData.scoutCards = [];
-        this.actionStep = 1;
+        this.actionStep = 2;
         this.updatePhaseBar();
         this.updateHand();
     }
@@ -848,7 +1100,7 @@ class UIManager {
     // ========================================================================
 
     startPass(playerId) {
-        this.actionStep = 1;
+        this.actionStep = 2;
         this.updatePhaseBar();
         this.updateHand();
     }
@@ -870,11 +1122,12 @@ class UIManager {
                     this.pendingData.cityId,
                     this.pendingData.slotIndex,
                     this.pendingData.industryType,
-                    cardIndex
+                    cardIndex,
+                    this.pendingData.resourceSelections
                 );
                 if (result.success) {
                     const display = INDUSTRY_DISPLAY[this.pendingData.industryType];
-                    const cityName = CITIES[this.pendingData.cityId]?.name;
+                    const cityName = CITIES[this.pendingData.cityId]?.name || BREWERY_FARMS[this.pendingData.cityId]?.name || this.pendingData.cityId;
                     this.addLogEntry(playerId, `built ${display.name} in ${cityName}`);
                 }
                 this.completeAction(result);
@@ -885,7 +1138,8 @@ class UIManager {
                 const result = this.logic.executeNetwork(
                     playerId,
                     this.pendingData.connectionId,
-                    cardIndex
+                    cardIndex,
+                    this.pendingData.resourceSelections
                 );
                 if (result.success) {
                     this.addLogEntry(playerId, result.message.replace(/^Built /, 'built '));
@@ -899,7 +1153,8 @@ class UIManager {
                     playerId,
                     this.pendingData.industryType1,
                     this.pendingData.industryType2,
-                    cardIndex
+                    cardIndex,
+                    this.pendingData.resourceSelections
                 );
                 if (result.success) {
                     this.addLogEntry(playerId, result.message.toLowerCase());
@@ -911,13 +1166,12 @@ class UIManager {
             case ACTIONS.SELL: {
                 const result = this.logic.executeSell(
                     playerId,
-                    this.pendingData.tileKeys,
-                    cardIndex
+                    this.pendingData.tileKey,
+                    this.pendingData.merchantIndex,
+                    cardIndex,
+                    this.pendingData.resourceSelections
                 );
-                if (result.success) {
-                    this.addLogEntry(playerId, result.message.toLowerCase());
-                }
-                this.completeAction(result);
+                this.handleSellResult(result);
                 break;
             }
 
@@ -970,7 +1224,7 @@ class UIManager {
             this.showToast(result.message, 'success');
         } else {
             this.showToast(result.message, 'error');
-            this.cancelAction();
+            this.resetActionSelection();
             return;
         }
 
@@ -981,6 +1235,8 @@ class UIManager {
         this.actionStep = 0;
         this.pendingData = {};
         this.selectedCard = null;
+        this.sellSession = null;
+        this.renderer.setMerchantProductFilter(null);
         this.renderer.clearHighlights();
 
         const turnResult = this.state.advanceTurn();
@@ -1015,6 +1271,24 @@ class UIManager {
         if (!target) return;
 
         if (this.selectedAction === ACTIONS.BUILD && this.actionStep === 0) {
+            const farm = target.closest('.brewery-farm');
+            if (farm && farm.classList.contains('highlight-slot')) {
+                const farmId = farm.dataset.farm;
+                const targets = (this.pendingData.buildTargets || []).filter(
+                    t => t.cityId === farmId
+                );
+                if (targets.length === 1) {
+                    const targetData = {
+                        cityId: farmId,
+                        slotIndex: targets[0].slotIndex,
+                        industryType: targets[0].industryType
+                    };
+                    this.closeModal();
+                    this.renderer.clearHighlights();
+                    this.beginResourcePlanning(targetData);
+                }
+            }
+
             const slot = target.closest('.industry-slot');
             if (slot && slot.classList.contains('highlight-slot')) {
                 const cityId = slot.dataset.city;
@@ -1024,12 +1298,13 @@ class UIManager {
                 );
                 if (targets.length === 1) {
                     // Single option for this slot — select it directly
-                    this.pendingData = { cityId, slotIndex, industryType: targets[0].industryType };
                     this.closeModal();
                     this.renderer.clearHighlights();
-                    this.actionStep = 1;
-                    this.updatePhaseBar();
-                    this.updateHand();
+                    this.beginResourcePlanning({
+                        cityId,
+                        slotIndex,
+                        industryType: targets[0].industryType,
+                    });
                 } else if (targets.length > 1) {
                     // Multiple types for this slot — show filtered modal
                     this.closeModal();
@@ -1042,12 +1317,9 @@ class UIManager {
             const line = target.closest('.connection-line');
             if (line && line.classList.contains('highlight')) {
                 const connId = line.dataset.connection;
-                this.pendingData = { connectionId: connId };
                 this.renderer.clearHighlights();
                 this.closeModal();
-                this.actionStep = 1;
-                this.updatePhaseBar();
-                this.updateHand();
+                this.beginResourcePlanning({ connectionId: connId });
             }
         }
     }
