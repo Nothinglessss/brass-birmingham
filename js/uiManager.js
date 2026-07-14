@@ -485,7 +485,8 @@ class UIManager {
     getTargetInstruction() {
         switch (this.selectedAction) {
             case ACTIONS.BUILD: return 'Select what to build from the list';
-            case ACTIONS.NETWORK: return 'Select a connection to build';
+            case ACTIONS.NETWORK:
+                return this.getNetworkTargetInstruction(this.pendingData.networkTargets || []);
             case ACTIONS.DEVELOP: return 'Select a tile to develop';
             case ACTIONS.SELL: return 'Select industries to sell';
             case ACTIONS.LOAN: return 'Select a card to discard for £30 loan';
@@ -493,6 +494,43 @@ class UIManager {
             case ACTIONS.PASS: return 'Select a card to discard';
             default: return '';
         }
+    }
+
+    getNetworkTargetInstruction(targets = []) {
+        if (targets.length === 0) return 'Select a connection to build';
+
+        const hasDoubleRail = targets.some(target =>
+            (target.connectionIds || []).length === 2
+        );
+        if (hasDoubleRail) {
+            return 'Select one rail link or a two-link Network action';
+        }
+
+        return targets.some(target => target.type === 'rail')
+            ? 'Select a rail link to build'
+            : 'Select a canal link to build';
+    }
+
+    getNetworkEndpointName(id) {
+        return CITIES[id]?.name || MERCHANTS[id]?.name || BREWERY_FARMS[id]?.name || id;
+    }
+
+    getNetworkTargetRouteLabel(target) {
+        const label = cities => cities
+            .map(id => this.getNetworkEndpointName(id))
+            .join(' - ');
+        const first = label(target.cities);
+        return target.secondCities ? `${first} + ${label(target.secondCities)}` : first;
+    }
+
+    getNetworkTargetViewModel(target) {
+        const connectionIds = target.connectionIds || [target.connectionId];
+        const doubleRail = connectionIds.length === 2;
+        return {
+            title: doubleRail ? 'Build 2 rails' : `Build 1 ${target.type}`,
+            detail: this.getNetworkTargetRouteLabel(target),
+            cost: doubleRail ? `£${target.cost} + 2 coal + 1 beer` : `£${target.cost}`,
+        };
     }
 
     beginResourcePlanning(targetData) {
@@ -1004,23 +1042,22 @@ class UIManager {
             return;
         }
 
+        this.pendingData.networkTargets = targets;
+        this.updatePhaseBar();
+
         this.renderer.highlightConnections(targets.flatMap(t => t.connectionIds || [t.connectionId]));
 
         let html = '<div class="choice-list">';
         for (const target of targets) {
-            const city1 = CITIES[target.cities[0]]?.name || MERCHANTS[target.cities[0]]?.name || BREWERY_FARMS[target.cities[0]]?.name || target.cities[0];
-            const city2 = CITIES[target.cities[1]]?.name || MERCHANTS[target.cities[1]]?.name || BREWERY_FARMS[target.cities[1]]?.name || target.cities[1];
-            const secondLabel = target.secondCities
-                ? ` + ${(CITIES[target.secondCities[0]]?.name || MERCHANTS[target.secondCities[0]]?.name || BREWERY_FARMS[target.secondCities[0]]?.name || target.secondCities[0])} - ${(CITIES[target.secondCities[1]]?.name || MERCHANTS[target.secondCities[1]]?.name || BREWERY_FARMS[target.secondCities[1]]?.name || target.secondCities[1])}`
-                : '';
+            const view = this.getNetworkTargetViewModel(target);
             html += `
                 <div class="choice-item" data-conns="${(target.connectionIds || [target.connectionId]).join('|')}">
                     <div class="choice-item-icon">${target.type === 'canal' ? '~' : '#'}</div>
                     <div class="choice-item-text">
-                        <div class="choice-item-name">${city1} — ${city2}</div>
-                        <div class="choice-item-detail">${target.secondCities ? `First link, then${secondLabel}` : target.type}</div>
+                        <div class="choice-item-name">${view.title}</div>
+                        <div class="choice-item-detail">${view.detail}</div>
                     </div>
-                    <div class="choice-item-cost">£${target.cost}</div>
+                    <div class="choice-item-cost">${view.cost}</div>
                 </div>
             `;
         }
