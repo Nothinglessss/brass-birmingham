@@ -329,7 +329,7 @@ const REGION_COLORS = {
 const BREWERY_FARMS = {
     northern: { // Between Cannock and Walsall
         name: 'Brewery (N)',
-        x: 385, y: 390,
+        x: 275, y: 360,
     },
     southern: { // Between Kidderminster and Worcester
         name: 'Brewery (S)',
@@ -355,7 +355,7 @@ const MERCHANTS = {
         minPlayers: 2,
         bonusType: 'develop',
         bonusAmount: 1,
-        x: 75, y: 790,
+        x: 360, y: 790,
     },
     oxford: {
         name: 'Oxford',
@@ -369,9 +369,10 @@ const MERCHANTS = {
         name: 'Warrington',
         slots: 2,
         minPlayers: 3,
+        networkMinPlayers: 2,
         bonusType: 'money',
         bonusAmount: 5,
-        x: 180, y: 15,
+        x: 180, y: 80,
     },
     nottingham: {
         name: 'Nottingham',
@@ -383,73 +384,90 @@ const MERCHANTS = {
     },
 };
 
-// Merchant tiles that get placed: what goods each merchant buys
-// null = buys any sellable good; otherwise specific type
+// Merchant tiles that get placed: what goods each merchant tile buys.
+// null = no goods demand icons; otherwise specific type
 const MERCHANT_TILES = {
-    2: [ // For 2-player game (5 tiles for Shrewsbury, Oxford, Gloucester)
-        { location: 'shrewsbury', buys: null }, // any
-        { location: 'oxford',     buys: INDUSTRY_TYPES.MANUFACTURER },
-        { location: 'oxford',     buys: INDUSTRY_TYPES.COTTON_MILL },
-        { location: 'gloucester', buys: INDUSTRY_TYPES.COTTON_MILL },
-        { location: 'gloucester', buys: INDUSTRY_TYPES.MANUFACTURER },
+    2: [
+        { buys: null },
+        { buys: INDUSTRY_TYPES.MANUFACTURER },
+        { buys: INDUSTRY_TYPES.COTTON_MILL },
+        { buys: INDUSTRY_TYPES.COTTON_MILL },
+        { buys: INDUSTRY_TYPES.MANUFACTURER },
     ],
-    3: [ // Additional tiles for 3-player (Warrington)
-        { location: 'warrington', buys: INDUSTRY_TYPES.POTTERY },
-        { location: 'warrington', buys: null },
+    3: [
+        { buys: INDUSTRY_TYPES.POTTERY },
+        { buys: null },
     ],
-    4: [ // Additional tiles for 4-player (Nottingham)
-        { location: 'nottingham', buys: INDUSTRY_TYPES.COTTON_MILL },
-        { location: 'nottingham', buys: INDUSTRY_TYPES.MANUFACTURER },
+    4: [
+        { buys: INDUSTRY_TYPES.COTTON_MILL },
+        { buys: INDUSTRY_TYPES.MANUFACTURER },
     ],
 };
 
 // ============================================================================
 // Network Connections (Links)
 // ============================================================================
-// Each connection: { cities: [city1, city2], canal: bool, rail: bool }
-// city can be a city key, merchant key, or brewery farm key
+// The JSON graph uses official/rulebook IDs. Keep app-facing IDs stable for
+// save keys, CSS/data attributes, and existing game terminology.
+const BOARD_GRAPH_ID_ALIASES = {
+    burtonUponTrent: 'burtonOnTrent',
+    farmBreweryNorth: 'northern',
+    farmBrewerySouth: 'southern',
+};
 
-const CONNECTIONS = [
-    { id: 'belper-derby',                cities: ['belper', 'derby'],           canal: true,  rail: true  },
-    { id: 'belper-leek',                 cities: ['belper', 'leek'],            canal: false, rail: true  },
-    { id: 'birmingham-coventry',         cities: ['birmingham', 'coventry'],    canal: true,  rail: true  },
-    { id: 'birmingham-dudley',           cities: ['birmingham', 'dudley'],      canal: true,  rail: true  },
-    { id: 'birmingham-nuneaton',         cities: ['birmingham', 'nuneaton'],    canal: false, rail: true  },
-    { id: 'birmingham-oxford',           cities: ['birmingham', 'oxford'],      canal: true,  rail: true  },
-    { id: 'birmingham-redditch',         cities: ['birmingham', 'redditch'],    canal: false, rail: true  },
-    { id: 'birmingham-tamworth',         cities: ['birmingham', 'tamworth'],    canal: true,  rail: true  },
-    { id: 'birmingham-walsall',          cities: ['birmingham', 'walsall'],     canal: true,  rail: true  },
-    { id: 'birmingham-worcester',        cities: ['birmingham', 'worcester'],   canal: true,  rail: true  },
-    { id: 'burtonOnTrent-cannock',       cities: ['burtonOnTrent', 'cannock'],  canal: false, rail: true  },
-    { id: 'burtonOnTrent-derby',         cities: ['burtonOnTrent', 'derby'],    canal: true,  rail: true  },
-    { id: 'burtonOnTrent-stone',         cities: ['burtonOnTrent', 'stone'],    canal: true,  rail: true  },
-    { id: 'burtonOnTrent-tamworth',      cities: ['burtonOnTrent', 'tamworth'], canal: true,  rail: true  },
-    { id: 'burtonOnTrent-walsall',       cities: ['burtonOnTrent', 'walsall'],  canal: true,  rail: false },
-    { id: 'cannock-stafford',            cities: ['cannock', 'stafford'],       canal: true,  rail: true  },
-    { id: 'cannock-northern',            cities: ['cannock', 'northern'],       canal: true,  rail: true  },
-    { id: 'cannock-walsall',             cities: ['cannock', 'walsall'],        canal: true,  rail: true  },
-    { id: 'cannock-wolverhampton',       cities: ['cannock', 'wolverhampton'],  canal: true,  rail: true  },
-    { id: 'coalbrookdale-kidderminster', cities: ['coalbrookdale', 'kidderminster'], canal: true, rail: true },
-    { id: 'coalbrookdale-shrewsbury',    cities: ['coalbrookdale', 'shrewsbury'],    canal: true, rail: true },
-    { id: 'coalbrookdale-wolverhampton', cities: ['coalbrookdale', 'wolverhampton'], canal: true, rail: true },
-    { id: 'coventry-nuneaton',           cities: ['coventry', 'nuneaton'],      canal: false, rail: true  },
-    { id: 'derby-nottingham',            cities: ['derby', 'nottingham'],       canal: true,  rail: true  },
-    { id: 'derby-uttoxeter',             cities: ['derby', 'uttoxeter'],        canal: false, rail: true  },
-    { id: 'dudley-kidderminster',        cities: ['dudley', 'kidderminster'],   canal: true,  rail: true  },
-    { id: 'dudley-wolverhampton',        cities: ['dudley', 'wolverhampton'],   canal: true,  rail: true  },
-    { id: 'gloucester-redditch',         cities: ['gloucester', 'redditch'],    canal: true,  rail: true  },
-    { id: 'gloucester-worcester',        cities: ['gloucester', 'worcester'],   canal: true,  rail: true  },
-    { id: 'kidderminster-worcester',     cities: ['kidderminster', 'worcester'], canal: true, rail: true, viaBrewery: 'southern' },
-    { id: 'leek-stokeOnTrent',           cities: ['leek', 'stokeOnTrent'],     canal: true,  rail: true  },
-    { id: 'nuneaton-tamworth',           cities: ['nuneaton', 'tamworth'],      canal: true,  rail: true  },
-    { id: 'redditch-oxford',             cities: ['redditch', 'oxford'],        canal: true,  rail: true  },
-    { id: 'stafford-stone',              cities: ['stafford', 'stone'],         canal: true,  rail: true  },
-    { id: 'stokeOnTrent-stone',          cities: ['stokeOnTrent', 'stone'],     canal: true,  rail: true  },
-    { id: 'stokeOnTrent-warrington',     cities: ['stokeOnTrent', 'warrington'],canal: true,  rail: true  },
-    { id: 'stone-uttoxeter',             cities: ['stone', 'uttoxeter'],        canal: false, rail: true  },
-    { id: 'tamworth-walsall',            cities: ['tamworth', 'walsall'],       canal: false, rail: true  },
-    { id: 'walsall-wolverhampton',       cities: ['walsall', 'wolverhampton'], canal: true,  rail: true  },
-];
+const BOARD_GRAPH_EDGE_ID_OVERRIDES = {
+    oxford__redditch: 'redditch-oxford',
+    kidderminster__worcester__farmBrewerySouth: 'kidderminster-worcester',
+};
+
+const CONNECTION_LAYOUT_OVERRIDES = {};
+
+function normalizeBoardGraphId(id) {
+    return BOARD_GRAPH_ID_ALIASES[id] || id;
+}
+
+function getBoardGraphNode(locationId) {
+    return BOARD_GRAPH_SOURCE.nodes.find(node => normalizeBoardGraphId(node.id) === locationId) || null;
+}
+
+function includesPlayerCount(counts, numPlayers) {
+    return Array.isArray(counts) && counts.includes(numPlayers);
+}
+
+function getBoardGraphConnectionId(edge, endpoints) {
+    return BOARD_GRAPH_EDGE_ID_OVERRIDES[edge.id] || endpoints.join('-');
+}
+
+function deriveConnectionFromBoardGraphEdge(edge) {
+    const endpoints = edge.endpoints.map(normalizeBoardGraphId);
+    const breweryEndpoints = endpoints.filter(isBreweryFarm);
+    const isHyperedge = edge.edge_type === 'link_space_hyperedge';
+    const networkEndpoints = isHyperedge
+        ? endpoints.filter(endpoint => !isBreweryFarm(endpoint))
+        : endpoints;
+    const id = getBoardGraphConnectionId(edge, endpoints);
+    const connection = {
+        id,
+        cities: networkEndpoints,
+        canal: edge.modes.includes('canal'),
+        rail: edge.modes.includes('rail'),
+    };
+
+    if (isHyperedge && breweryEndpoints.length > 0) {
+        connection.viaBrewery = breweryEndpoints[0];
+    }
+
+    return {
+        ...connection,
+        ...(CONNECTION_LAYOUT_OVERRIDES[id] || {}),
+    };
+}
+
+function deriveConnectionsFromBoardGraph(graph) {
+    return graph.edges.map(deriveConnectionFromBoardGraphEdge);
+}
+
+const CONNECTIONS = deriveConnectionsFromBoardGraph(BOARD_GRAPH_SOURCE);
 
 // ============================================================================
 // Card Deck Composition (by player count)
@@ -624,4 +642,46 @@ function isBreweryFarm(locationId) {
 
 function isCity(locationId) {
     return !!CITIES[locationId];
+}
+
+function isLocationAvailableForPlayers(locationId, numPlayers) {
+    if (isCity(locationId)) {
+        const node = getBoardGraphNode(locationId);
+        return node ? includesPlayerCount(node.buildable_player_counts, numPlayers) : true;
+    }
+    if (isMerchantLocation(locationId)) {
+        return MERCHANTS[locationId].minPlayers <= numPlayers;
+    }
+    if (isBreweryFarm(locationId)) {
+        const node = getBoardGraphNode(locationId);
+        return node ? includesPlayerCount(node.buildable_player_counts, numPlayers) : true;
+    }
+    return false;
+}
+
+function isMerchantTradeAvailableForPlayers(locationId, numPlayers) {
+    if (!isMerchantLocation(locationId)) return false;
+    return MERCHANTS[locationId].minPlayers <= numPlayers;
+}
+
+function isLocationNetworkAvailableForPlayers(locationId, numPlayers) {
+    if (isCity(locationId)) {
+        const node = getBoardGraphNode(locationId);
+        return node ? includesPlayerCount(node.buildable_player_counts, numPlayers) : true;
+    }
+    if (isMerchantLocation(locationId)) {
+        const merchant = MERCHANTS[locationId];
+        const minPlayers = merchant.networkMinPlayers ?? merchant.minPlayers;
+        return minPlayers <= numPlayers;
+    }
+    if (isBreweryFarm(locationId)) {
+        const node = getBoardGraphNode(locationId);
+        return node ? includesPlayerCount(node.buildable_player_counts, numPlayers) : true;
+    }
+    return false;
+}
+
+function isConnectionAvailableForPlayers(conn, numPlayers) {
+    if (conn.minPlayers && conn.minPlayers <= numPlayers) return true;
+    return conn.cities.every(locationId => isLocationNetworkAvailableForPlayers(locationId, numPlayers));
 }

@@ -5,6 +5,57 @@
 class GameLogic {
     constructor(gameState) {
         this.state = gameState;
+        this.resourcePlanner = new ResourcePlanner(gameState);
+    }
+
+    planBuildResources(context, selections = []) {
+        return this.resourcePlanner.planBuild(context, selections);
+    }
+
+    planDevelopResources(context, selections = []) {
+        return this.resourcePlanner.planDevelop(context, selections);
+    }
+
+    planNetworkResources(context, selections = []) {
+        return this.resourcePlanner.planNetwork(context, selections);
+    }
+
+    planSellResources(context, selections = []) {
+        return this.resourcePlanner.planSell(context, selections);
+    }
+
+    completeResourcePlan(planFactory) {
+        const selections = [];
+        for (let guard = 0; guard < 50; guard++) {
+            const plan = planFactory(selections);
+            if (plan.status !== 'choice') return plan;
+            const firstOption = plan.nextChoice?.options?.[0];
+            if (!firstOption) {
+                return { status: 'impossible', message: 'No legal resource source is available' };
+            }
+            selections.push(firstOption.id);
+        }
+        return { status: 'invalid', message: 'Resource plan did not resolve' };
+    }
+
+    previewDevelopResources(playerId, industryTypes) {
+        return this.completeResourcePlan(selections => this.planDevelopResources({
+            playerId,
+            industryTypes,
+        }, selections));
+    }
+
+    commitResourcePlan(plan) {
+        for (const unit of plan.consumptions) {
+            if (unit.sourceType === 'market') {
+                const marketKey = `${unit.resource}Market`;
+                if (this.state[marketKey] > 0) this.state[marketKey]--;
+            } else if (unit.sourceType === 'merchant') {
+                this.state.merchantTiles[unit.merchantIndex].hasBeer = false;
+            } else {
+                this.state.consumeResource(unit.key);
+            }
+        }
     }
 
     // ========================================================================
@@ -36,6 +87,7 @@ class GameLogic {
         const targets = [];
 
         for (const [cityId, city] of Object.entries(CITIES)) {
+            if (!isLocationAvailableForPlayers(cityId, this.state.numPlayers)) continue;
             city.slots.forEach((slotTypes, slotIndex) => {
                 const key = `${cityId}_${slotIndex}`;
                 const existing = this.state.boardIndustries[key];
@@ -109,21 +161,60 @@ class GameLogic {
             });
         }
 
+        for (const farmId of Object.keys(BREWERY_FARMS)) {
+            const existing = this.state.breweryFarmTiles[farmId];
+            const nextTile = this.state.getNextTile(playerId, INDUSTRY_TYPES.BREWERY);
+            if (existing || !nextTile) continue;
+            if (this.state.era === ERA.CANAL && !nextTile.canalEra) continue;
+            if (this.state.era === ERA.RAIL && !nextTile.railEra) continue;
+
+            const cost = this.calculateBuildCost(playerId, INDUSTRY_TYPES.BREWERY, farmId);
+            if (cost === null) continue;
+            if (!this.hasCardForBuild(playerId, farmId, INDUSTRY_TYPES.BREWERY)) continue;
+
+            targets.push({
+                cityId: farmId,
+                slotIndex: 0,
+                industryType: INDUSTRY_TYPES.BREWERY,
+                tileData: nextTile,
+                cost,
+            });
+        }
+
         return targets;
+    }
+
+    hasBoardPresence(playerId) {
+        return Object.values(this.state.boardLinks)
+            .some(link => link.playerId === playerId) ||
+            Object.values(this.state.boardIndustries)
+                .some(tile => tile.playerId === playerId) ||
+            Object.values(this.state.breweryFarmTiles)
+                .some(tile => tile.playerId === playerId);
+    }
+
+    canUseIndustryCardAtLocation(playerId, cityId) {
+        return !this.hasBoardPresence(playerId) ||
+            this.state.isInNetwork(playerId, cityId);
     }
 
     hasCardForBuild(playerId, cityId, industryType) {
         const player = this.state.players[playerId];
-        const inNetwork = this.state.isInNetwork(playerId, cityId);
+        const canUseIndustryCard = this.canUseIndustryCardAtLocation(playerId, cityId);
         for (const card of player.hand) {
-            // Location card: can build at that location (no network needed)
+            if (isBreweryFarm(cityId)) {
+                if (card.type === CARD_TYPES.INDUSTRY &&
+                    card.industryType === industryType &&
+                    canUseIndustryCard) return true;
+                if (card.type === CARD_TYPES.WILD_INDUSTRY && canUseIndustryCard) return true;
+                continue;
+            }
             if (card.type === CARD_TYPES.LOCATION && card.location === cityId) return true;
-            // Industry card: can build that industry at any location IN network
-            if (card.type === CARD_TYPES.INDUSTRY && card.industryType === industryType && inNetwork) return true;
-            // Wild location: acts as any location card
+            if (card.type === CARD_TYPES.INDUSTRY &&
+                card.industryType === industryType &&
+                canUseIndustryCard) return true;
             if (card.type === CARD_TYPES.WILD_LOCATION) return true;
-            // Wild industry: acts as any industry card (needs network)
-            if (card.type === CARD_TYPES.WILD_INDUSTRY && inNetwork) return true;
+            if (card.type === CARD_TYPES.WILD_INDUSTRY && canUseIndustryCard) return true;
         }
         return false;
     }
@@ -133,45 +224,23 @@ class GameLogic {
         const tile = this.state.getNextTile(playerId, industryType);
         if (!tile) return null;
 
-        let moneyCost = tile.cost;
-        let coalNeeded = tile.costCoal;
-        let ironNeeded = tile.costIron;
+        const plan = this.completeResourcePlan(selections => this.planBuildResources({
+            playerId,
+            cityId,
+            industryType,
+        }, selections));
+        if (plan.status !== 'complete') return null;
 
-        // Find cheapest coal sources
-        let coalCost = 0;
-        if (coalNeeded > 0) {
-            const sources = this.state.findCoalSource(cityId, playerId);
-            let remaining = coalNeeded;
-            for (const src of sources) {
-                if (remaining <= 0) break;
-                if (src.free) {
-                    remaining--;
-                } else {
-                    coalCost += src.price;
-                    remaining--;
-                }
-            }
-            if (remaining > 0) return null; // Not enough coal
-        }
-
-        // Find cheapest iron sources
-        let ironCost = 0;
-        if (ironNeeded > 0) {
-            const sources = this.state.findIronSource(playerId);
-            let remaining = ironNeeded;
-            for (const src of sources) {
-                if (remaining <= 0) break;
-                if (src.free) {
-                    remaining--;
-                } else {
-                    ironCost += src.price;
-                    remaining--;
-                }
-            }
-            if (remaining > 0) return null; // Not enough iron
-        }
-
-        const totalCost = moneyCost + coalCost + ironCost;
+        const moneyCost = tile.cost;
+        const coalNeeded = tile.costCoal || 0;
+        const ironNeeded = tile.costIron || 0;
+        const coalCost = plan.consumptions
+            .filter(unit => unit.resource === 'coal')
+            .reduce((sum, unit) => sum + unit.price, 0);
+        const ironCost = plan.consumptions
+            .filter(unit => unit.resource === 'iron')
+            .reduce((sum, unit) => sum + unit.price, 0);
+        const totalCost = moneyCost + plan.marketCost;
         if (totalCost > player.money) return null;
 
         return {
@@ -184,72 +253,84 @@ class GameLogic {
         };
     }
 
-    executeBuild(playerId, cityId, slotIndex, industryType, cardIndex) {
+    executeBuild(playerId, cityId, slotIndex, industryType, cardIndex, resourceSelections = []) {
         const player = this.state.players[playerId];
-        const key = `${cityId}_${slotIndex}`;
+        const key = isBreweryFarm(cityId) ? `farm_${cityId}` : `${cityId}_${slotIndex}`;
+        const validCards = this.getValidCardsForAction(playerId, ACTIONS.BUILD, { cityId, slotIndex, industryType });
+        if (!validCards.includes(cardIndex)) {
+            return { success: false, message: 'Invalid card for this build' };
+        }
 
-        // Validate cost before consuming the tile — calculateBuildCost uses getNextTile
-        // internally, so calling useNextTile first would advance the tile pointer and
-        // compute cost for the wrong (next-level) tile.
-        const cost = this.calculateBuildCost(playerId, industryType, cityId);
-        if (!cost) return { success: false, message: 'Cannot afford this build' };
+        const resourcePlan = this.planBuildResources({
+            playerId,
+            cityId,
+            slotIndex,
+            industryType,
+        }, resourceSelections);
+        if (resourcePlan.status !== 'complete') {
+            return {
+                success: false,
+                message: resourcePlan.message || 'Choose resource sources before building',
+            };
+        }
+        const totalCost = resourcePlan.baseCost + resourcePlan.marketCost;
+        if (totalCost > player.money) {
+            return { success: false, message: 'Cannot afford this build' };
+        }
 
         const tileData = this.state.useNextTile(playerId, industryType);
         if (!tileData) return { success: false, message: 'No tile available' };
 
-        this.state.spendMoney(playerId, cost.total);
-
-        // Consume coal
-        if (cost.coal > 0) {
-            let remaining = cost.coal;
-            const sources = this.state.findCoalSource(cityId, playerId);
-            for (const src of sources) {
-                if (remaining <= 0) break;
-                if (src.type === 'mine') {
-                    this.state.consumeResource(src.key);
-                    remaining--;
-                } else if (src.type === 'market') {
-                    this.state.coalMarket--;
-                    remaining--;
-                }
-            }
-        }
-
-        // Consume iron
-        if (cost.iron > 0) {
-            let remaining = cost.iron;
-            const sources = this.state.findIronSource(playerId);
-            for (const src of sources) {
-                if (remaining <= 0) break;
-                if (src.type === 'works') {
-                    this.state.consumeResource(src.key);
-                    remaining--;
-                } else if (src.type === 'market') {
-                    this.state.ironMarket--;
-                    remaining--;
-                }
-            }
-        }
+        this.state.spendMoney(playerId, totalCost);
+        this.commitResourcePlan(resourcePlan);
 
         // Remove the existing tile if overbuilding
-        const existing = this.state.boardIndustries[key];
+        const existing = isBreweryFarm(cityId) ? this.state.breweryFarmTiles[cityId] : this.state.boardIndustries[key];
         if (existing) {
             // Overbuilt tile is removed from the game
         }
 
         // Place the tile
-        this.state.boardIndustries[key] = {
+        const placedTile = {
             playerId,
             type: industryType,
             tileData: tileData,
             flipped: false,
             resourceCubes: tileData.resourceCubes || 0,
         };
+        if (isBreweryFarm(cityId)) {
+            this.state.breweryFarmTiles[cityId] = placedTile;
+        } else {
+            this.state.boardIndustries[key] = placedTile;
+        }
+        this.sellNewResourceTileToMarket(playerId, cityId, key);
 
         // Discard the used card
         this.discardCard(playerId, cardIndex);
 
-        return { success: true, message: `Built ${INDUSTRY_DISPLAY[industryType].name} Level ${tileData.level} in ${CITIES[cityId].name}` };
+        const locationName = CITIES[cityId]?.name || BREWERY_FARMS[cityId]?.name || cityId;
+        return { success: true, message: `Built ${INDUSTRY_DISPLAY[industryType].name} Level ${tileData.level} in ${locationName}` };
+    }
+
+    sellNewResourceTileToMarket(playerId, cityId, key) {
+        const tile = key.startsWith('farm_') ? this.state.breweryFarmTiles[cityId] : this.state.boardIndustries[key];
+        if (!tile || tile.resourceCubes <= 0) return;
+
+        let sale = null;
+        if (tile.type === INDUSTRY_TYPES.IRON_WORKS) {
+            sale = this.state.sellIronToMarket(tile.resourceCubes);
+        } else if (tile.type === INDUSTRY_TYPES.COAL_MINE && this.state.isConnectedToMerchant(cityId)) {
+            sale = this.state.sellCoalToMarket(tile.resourceCubes);
+        }
+
+        if (!sale || sale.sold <= 0) return;
+
+        tile.resourceCubes -= sale.sold;
+        this.state.players[playerId].money += sale.revenue;
+
+        if (tile.resourceCubes <= 0) {
+            this.state.flipTile(key, tile);
+        }
     }
 
     isResourceDepleted(industryType) {
@@ -285,6 +366,7 @@ class GameLogic {
         const era = this.state.era;
 
         for (const conn of CONNECTIONS) {
+            if (!isConnectionAvailableForPlayers(conn, this.state.numPlayers)) continue;
             if (this.state.boardLinks[conn.id]) continue; // Already built
 
             // Check era
@@ -306,32 +388,56 @@ class GameLogic {
                 if (!end1InNetwork && !end2InNetwork) continue;
             }
 
-            // Check cost
-            let cost;
-            if (era === ERA.CANAL) {
-                cost = CANAL_LINK_COST;
-            } else {
-                cost = RAIL_LINK_COST;
-                // Rail also needs coal — check both endpoints, pick cheapest source
-                const coalSource = this.findCheapestCoalForLink(conn, playerId);
-                if (!coalSource) continue; // No coal available from either end
-                cost += coalSource.free ? 0 : coalSource.price;
-            }
+            // Preview resources with the same staged rules used by execution.
+            const resourcePlan = this.completeResourcePlan(selections =>
+                this.planNetworkResources({
+                    playerId,
+                    connectionIds: [conn.id],
+                }, selections)
+            );
+            if (resourcePlan.status !== 'complete') continue;
+            const cost = resourcePlan.baseCost + resourcePlan.marketCost;
 
             if (cost > player.money) continue;
 
             targets.push({
                 connectionId: conn.id,
+                connectionIds: [conn.id],
                 cities: conn.cities,
                 cost,
                 type: era === ERA.CANAL ? 'canal' : 'rail',
             });
         }
 
+        if (era === ERA.RAIL && player.linksRemaining.rail >= 2) {
+            const singleRails = targets.filter(t => t.type === 'rail');
+            for (let i = 0; i < singleRails.length; i++) {
+                for (let j = i + 1; j < singleRails.length; j++) {
+                    const first = singleRails[i];
+                    const second = singleRails[j];
+                    const connectionIds = [first.connectionId, second.connectionId];
+                    const resourcePlan = this.completeResourcePlan(selections =>
+                        this.planNetworkResources({ playerId, connectionIds }, selections)
+                    );
+                    if (resourcePlan.status !== 'complete') continue;
+                    const cost = resourcePlan.baseCost + resourcePlan.marketCost;
+                    if (cost > player.money) continue;
+                    targets.push({
+                        connectionId: `${first.connectionId}+${second.connectionId}`,
+                        connectionIds,
+                        cities: first.cities,
+                        secondCities: second.cities,
+                        cost,
+                        type: 'rail-double',
+                    });
+                }
+            }
+        }
+
         return targets;
     }
 
-    executeNetwork(playerId, connectionId, cardIndex) {
+    executeNetworkLegacy(playerId, connectionId, cardIndex) {
         const player = this.state.players[playerId];
         const conn = CONNECTIONS.find(c => c.id === connectionId);
         if (!conn) return { success: false, message: 'Invalid connection' };
@@ -379,6 +485,85 @@ class GameLogic {
         return { success: true, message: `Built ${linkType} link: ${city1} - ${city2}` };
     }
 
+    executeNetwork(playerId, connectionId, cardIndex, resourceSelections = []) {
+        const player = this.state.players[playerId];
+        const connectionIds = Array.isArray(connectionId) ? connectionId : [connectionId];
+        const conns = connectionIds.map(id => CONNECTIONS.find(c => c.id === id));
+        if (connectionIds.length < 1 || connectionIds.length > 2 || conns.some(conn => !conn)) {
+            return { success: false, message: 'Invalid connection' };
+        }
+
+        const era = this.state.era;
+        const linkType = era === ERA.CANAL ? 'canal' : 'rail';
+        if (connectionIds.length > 1 && era !== ERA.RAIL) {
+            return { success: false, message: 'Can only build two links in the Rail Era' };
+        }
+        if (connectionIds.some(id => this.state.boardLinks[id])) {
+            return { success: false, message: 'Connection already built' };
+        }
+        if (connectionIds.length > 1 && player.linksRemaining.rail < 2) {
+            return { success: false, message: 'Not enough rail links remaining' };
+        }
+
+        const validCards = this.getValidCardsForAction(playerId, ACTIONS.NETWORK);
+        if (!validCards.includes(cardIndex)) {
+            return { success: false, message: 'Invalid card for this network action' };
+        }
+        const resourcePlan = this.planNetworkResources({
+            playerId,
+            connectionIds,
+        }, resourceSelections);
+        if (resourcePlan.status !== 'complete') {
+            return {
+                success: false,
+                message: resourcePlan.message || 'Choose resource sources before networking',
+            };
+        }
+        const totalCost = resourcePlan.baseCost + resourcePlan.marketCost;
+        if (totalCost > player.money) {
+            return { success: false, message: 'Cannot afford this network action' };
+        }
+        this.state.spendMoney(playerId, totalCost);
+        this.commitResourcePlan(resourcePlan);
+
+        for (const id of connectionIds) {
+            this.state.boardLinks[id] = { playerId, type: linkType };
+        }
+
+        if (linkType === 'canal') {
+            player.linksRemaining.canal--;
+        } else {
+            player.linksRemaining.rail -= connectionIds.length;
+        }
+
+        this.discardCard(playerId, cardIndex);
+
+        const conn = conns[0];
+        const city1 = CITIES[conn.cities[0]]?.name || MERCHANTS[conn.cities[0]]?.name || conn.cities[0];
+        const city2 = CITIES[conn.cities[1]]?.name || MERCHANTS[conn.cities[1]]?.name || conn.cities[1];
+        const suffix = connectionIds.length === 2 ? ' and another rail link' : '';
+        return { success: true, message: `Built ${linkType} link: ${city1} - ${city2}${suffix}` };
+    }
+
+    findBeerSourcesForConnections(connectionIds, playerId) {
+        const seen = new Set();
+        const sources = [];
+        for (const id of connectionIds) {
+            const conn = CONNECTIONS.find(c => c.id === id);
+            if (!conn) continue;
+            for (const locationId of conn.cities) {
+                for (const src of this.state.findBeerSources(locationId, playerId)) {
+                    const key = src.type === 'merchant' ? `merchant_${src.index}` : src.key;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        sources.push(src);
+                    }
+                }
+            }
+        }
+        return sources;
+    }
+
     // Find the cheapest coal source reachable from either endpoint of a connection.
     // Returns the best source object or null if no coal is available.
     findCheapestCoalForLink(conn, playerId) {
@@ -408,18 +593,11 @@ class GameLogic {
 
     canDevelop(playerId) {
         const player = this.state.players[playerId];
-        // Need iron to develop (1 iron per tile removed)
-        const ironSources = this.state.findIronSource(playerId);
-        if (ironSources.length === 0) return false;
-
-        // If the only iron available is from the market, player must be able to afford it
-        const firstSource = ironSources[0];
-        if (!firstSource.free && firstSource.price > player.money) return false;
-
-        // Need at least one developable tile
         for (const [type, tiles] of Object.entries(player.industryTiles)) {
             const nextTile = tiles.find(t => !t.used);
-            if (nextTile && nextTile.canDevelop) return true;
+            if (!nextTile || !nextTile.canDevelop) continue;
+            const plan = this.previewDevelopResources(playerId, [type]);
+            if (plan.status === 'complete' && plan.marketCost <= player.money) return true;
         }
         return false;
     }
@@ -441,39 +619,54 @@ class GameLogic {
         return types;
     }
 
-    executeDevelop(playerId, industryType1, industryType2, cardIndex) {
+    getFreeDevelopOptions(playerId) {
+        return this.getDevelopableTypes(playerId);
+    }
+
+    applyChosenFreeDevelop(playerId, industryType) {
+        const option = this.getFreeDevelopOptions(playerId)
+            .find(candidate => candidate.type === industryType);
+        if (!option) return null;
+
+        const tile = this.state.developTile(playerId, industryType);
+        if (!tile) return null;
+        return {
+            industryType,
+            name: option.name,
+            level: option.level,
+        };
+    }
+
+    executeDevelop(playerId, industryType1, industryType2, cardIndex, resourceSelections = []) {
         // Develop removes 1 or 2 tiles from player mat (uses iron)
         // industryType2 can be null for single develop
         const player = this.state.players[playerId];
-
-        // Validate iron availability and affordability before proceeding
-        const tilesToDevelop = industryType2 ? 2 : 1;
-        const ironSources = this.state.findIronSource(playerId);
-        if (ironSources.length < tilesToDevelop) {
-            return { success: false, message: 'Not enough iron available' };
+        const validCards = this.getValidCardsForAction(playerId, ACTIONS.DEVELOP);
+        if (!validCards.includes(cardIndex)) {
+            return { success: false, message: 'Invalid card for this develop action' };
         }
 
-        // Pre-check: can player afford market iron for each unit needed?
-        let moneyNeeded = 0;
-        for (let i = 0; i < tilesToDevelop; i++) {
-            if (!ironSources[i].free) moneyNeeded += ironSources[i].price;
+        const industryTypes = industryType2
+            ? [industryType1, industryType2]
+            : [industryType1];
+        const resourcePlan = this.planDevelopResources({
+            playerId,
+            industryTypes,
+        }, resourceSelections);
+        if (resourcePlan.status !== 'complete') {
+            return {
+                success: false,
+                message: resourcePlan.message || 'Choose iron sources before developing',
+            };
         }
-        if (moneyNeeded > player.money) {
+        if (resourcePlan.marketCost > player.money) {
             return { success: false, message: 'Cannot afford market iron' };
         }
 
-        // Consume iron (1 per tile developed)
-        for (let i = 0; i < tilesToDevelop; i++) {
-            const src = ironSources[i];
-            if (src.type === 'works') {
-                this.state.consumeResource(src.key);
-            } else {
-                // Buy from market
-                const price = this.state.getIronPrice();
-                this.state.spendMoney(playerId, price);
-                this.state.ironMarket--;
-            }
+        if (resourcePlan.marketCost > 0) {
+            this.state.spendMoney(playerId, resourcePlan.marketCost);
         }
+        this.commitResourcePlan(resourcePlan);
 
         // Remove tiles from player mat
         const tile1 = this.state.developTile(playerId, industryType1);
@@ -502,120 +695,165 @@ class GameLogic {
             if (tile.playerId !== playerId) continue;
             if (tile.flipped) continue;
             if (!isSellableIndustry(tile.type)) continue;
-
-            // Check if player has beer available
-            const beerNeeded = tile.tileData.beersToSell || 0;
-            if (beerNeeded > 0) {
-                const [cityId] = key.split('_');
-                const beerSources = this.state.findBeerSources(cityId, playerId);
-                if (beerSources.length < beerNeeded) continue;
-            }
-
-            // Check merchant connection for selling
             const [cityId] = key.split('_');
             const connected = this.state.getConnectedLocations(cityId);
-            let hasMerchant = false;
+            for (let merchantIndex = 0; merchantIndex < this.state.merchantTiles.length; merchantIndex++) {
+                const merchant = this.state.merchantTiles[merchantIndex];
+                if (merchant.buys !== tile.type || !connected.has(merchant.location)) continue;
 
-            for (const mt of this.state.merchantTiles) {
-                if (!mt.bonusClaimed && connected.has(mt.location)) {
-                    if (mt.buys === null || mt.buys === tile.type) {
-                        hasMerchant = true;
-                        break;
-                    }
-                }
+                const plan = this.planSellResources({
+                    playerId,
+                    tileKey: key,
+                    merchantIndex,
+                });
+                if (plan.status === 'invalid' || plan.status === 'impossible') continue;
+
+                targets.push({
+                    key,
+                    cityId,
+                    tile,
+                    beerNeeded: tile.tileData.beersToSell || 0,
+                    merchantIndex,
+                    merchantLocation: merchant.location,
+                });
             }
-
-            // Manufacturer III and VII have beersToSell = 0 and don't need merchants
-            if (tile.tileData.beersToSell === 0) {
-                hasMerchant = true; // These auto-sell
-            }
-
-            if (!hasMerchant) continue;
-
-            targets.push({
-                key,
-                cityId,
-                tile,
-                beerNeeded,
-            });
         }
 
         return targets;
     }
 
-    executeSell(playerId, tileKeys, cardIndex) {
-        // tileKeys: array of board keys to sell
-        const player = this.state.players[playerId];
-        const results = [];
-
-        // Per game rules, a single sell action claims at most ONE merchant bonus.
-        let merchantBonusClaimed = false;
-
-        for (const key of tileKeys) {
-            const tile = this.state.boardIndustries[key];
-            if (!tile || tile.playerId !== playerId || tile.flipped) continue;
-
-            const beerNeeded = tile.tileData.beersToSell || 0;
-            const [cityId] = key.split('_');
-
-            // Consume beer — verify enough is available before flipping
-            if (beerNeeded > 0) {
-                const beerSources = this.state.findBeerSources(cityId, playerId);
-                if (beerSources.length < beerNeeded) continue; // Can't afford beer; skip tile
-                for (let i = 0; i < beerNeeded; i++) {
-                    const src = beerSources[i];
-                    if (src.type === 'merchant') {
-                        this.state.merchantTiles[src.index].hasBeer = false;
-                    } else {
-                        this.state.consumeResource(src.key);
-                    }
-                }
-            }
-
-            // Flip tile
-            tile.flipped = true;
-            this.state.advanceIncomeBySpaces(playerId, tile.tileData.income);
-
-            // Check for merchant bonus (at most one bonus per sell action)
-            if (!merchantBonusClaimed) {
-                const connected = this.state.getConnectedLocations(cityId);
-                for (const mt of this.state.merchantTiles) {
-                    if (!mt.bonusClaimed && connected.has(mt.location)) {
-                        if (mt.buys === null || mt.buys === tile.type) {
-                            mt.bonusClaimed = true;
-                            merchantBonusClaimed = true;
-                            // Apply bonus
-                            const merchData = MERCHANTS[mt.location];
-                            if (merchData) {
-                                switch (merchData.bonusType) {
-                                    case 'vp':
-                                        player.vp += merchData.bonusAmount;
-                                        break;
-                                    case 'money':
-                                        player.money += merchData.bonusAmount;
-                                        break;
-                                    case 'income':
-                                        this.state.advanceIncomeBySpaces(playerId, merchData.bonusAmount);
-                                        break;
-                                    case 'develop':
-                                        // Free develop: remove lowest tile from player mat (no iron cost)
-                                        this.applyFreeDevelop(playerId, merchData.bonusAmount);
-                                        break;
-                                }
-                            }
-                            break; // Only one merchant per sell action
-                        }
-                    }
-                }
-            }
-
-            results.push(`Sold ${INDUSTRY_DISPLAY[tile.type].name} Lv${tile.tileData.level}`);
+    executeSell(
+        playerId,
+        tileKey,
+        merchantIndex,
+        cardIndex,
+        resourceSelections = [],
+        freeDevelopIndustryType = null
+    ) {
+        const validCards = this.getValidCardsForAction(playerId, ACTIONS.SELL);
+        if (!validCards.includes(cardIndex)) {
+            return { success: false, message: 'Invalid card for this sell action' };
         }
 
-        // Discard card
-        this.discardCard(playerId, cardIndex);
+        const result = this.executeSellIndustry(
+            playerId,
+            tileKey,
+            merchantIndex,
+            resourceSelections,
+            freeDevelopIndustryType
+        );
+        if (!result.success) return result;
 
-        return { success: true, message: results.join(', ') };
+        this.discardCard(playerId, cardIndex);
+        return result;
+    }
+
+    executeSellIndustry(
+        playerId,
+        tileKey,
+        merchantIndex,
+        resourceSelections = [],
+        freeDevelopIndustryType = null
+    ) {
+        const player = this.state.players[playerId];
+        const validTarget = this.getValidSellTargets(playerId).some(target =>
+            target.key === tileKey && target.merchantIndex === merchantIndex
+        );
+        if (!validTarget) {
+            return { success: false, message: 'No matching merchant demand for this industry' };
+        }
+
+        const resourcePlan = this.planSellResources({
+            playerId,
+            tileKey,
+            merchantIndex,
+        }, resourceSelections);
+        if (resourcePlan.status !== 'complete') {
+            return {
+                success: false,
+                message: resourcePlan.message || 'Choose beer sources before selling',
+            };
+        }
+
+        const tile = this.state.boardIndustries[tileKey];
+        const usedMerchantBeer = resourcePlan.consumptions.some(unit =>
+            unit.sourceType === 'merchant' && unit.merchantIndex === merchantIndex
+        );
+        const merchant = this.state.merchantTiles[merchantIndex];
+        const merchantData = usedMerchantBeer ? MERCHANTS[merchant.location] : null;
+        let freeDevelopOption = null;
+
+        if (merchantData?.bonusType === 'develop') {
+            const options = this.getFreeDevelopOptions(playerId);
+            if (options.length > 0) {
+                freeDevelopOption = options.find(option =>
+                    option.type === freeDevelopIndustryType
+                );
+                if (!freeDevelopOption) {
+                    return {
+                        success: false,
+                        message: 'Choose an industry for Gloucester free Develop',
+                    };
+                }
+            }
+        }
+
+        this.commitResourcePlan(resourcePlan);
+
+        tile.flipped = true;
+        this.state.advanceIncomeBySpaces(playerId, tile.tileData.income);
+
+        let freeDevelopResult = null;
+        if (usedMerchantBeer) {
+            merchant.bonusClaimed = true;
+            if (merchantData) {
+                switch (merchantData.bonusType) {
+                    case 'vp':
+                        player.vp += merchantData.bonusAmount;
+                        break;
+                    case 'money':
+                        player.money += merchantData.bonusAmount;
+                        break;
+                    case 'income':
+                        this.state.advanceIncomeBySpaces(playerId, merchantData.bonusAmount);
+                        break;
+                    case 'develop':
+                        if (freeDevelopOption) {
+                            freeDevelopResult = this.applyChosenFreeDevelop(
+                                playerId,
+                                freeDevelopOption.type
+                            );
+                        }
+                        break;
+                }
+            }
+        }
+
+        const baseMessage = `Sold ${INDUSTRY_DISPLAY[tile.type].name} Lv${tile.tileData.level}`;
+        const bonusMessage = freeDevelopResult
+            ? `; free developed ${freeDevelopResult.name} Lv${freeDevelopResult.level}`
+            : '';
+        return {
+            success: true,
+            message: `${baseMessage}${bonusMessage}`,
+            freeDevelop: freeDevelopResult,
+        };
+    }
+
+    executeAdditionalSell(
+        playerId,
+        tileKey,
+        merchantIndex,
+        resourceSelections = [],
+        freeDevelopIndustryType = null
+    ) {
+        return this.executeSellIndustry(
+            playerId,
+            tileKey,
+            merchantIndex,
+            resourceSelections,
+            freeDevelopIndustryType
+        );
     }
 
     // ========================================================================
@@ -736,9 +974,7 @@ class GameLogic {
                 return null;
             }
             case ACTIONS.DEVELOP: {
-                const ironSources = this.state.findIronSource(playerId);
-                if (ironSources.length === 0) return 'No iron available';
-                if (!this.canDevelop(playerId)) return 'No developable tiles on your mat';
+                if (!this.canDevelop(playerId)) return 'No affordable develop action available';
                 return null;
             }
             case ACTIONS.SELL:
@@ -787,25 +1023,36 @@ class GameLogic {
     getValidCardsForAction(playerId, action, target = null) {
         const player = this.state.players[playerId];
         const validIndices = [];
+        const canUseIndustryCardAtTarget = action === ACTIONS.BUILD && target
+            ? this.canUseIndustryCardAtLocation(playerId, target.cityId)
+            : false;
 
         player.hand.forEach((card, idx) => {
             switch (action) {
                 case ACTIONS.BUILD:
                     if (target) {
-                        // Check if card matches the build target
+                        if (isBreweryFarm(target.cityId)) {
+                            if (card.type === CARD_TYPES.INDUSTRY &&
+                                card.industryType === target.industryType &&
+                                canUseIndustryCardAtTarget) {
+                                validIndices.push(idx);
+                            } else if (card.type === CARD_TYPES.WILD_INDUSTRY &&
+                                canUseIndustryCardAtTarget) {
+                                validIndices.push(idx);
+                            }
+                            break;
+                        }
                         if (card.type === CARD_TYPES.LOCATION && card.location === target.cityId) {
                             validIndices.push(idx);
-                        } else if (card.type === CARD_TYPES.INDUSTRY && card.industryType === target.industryType) {
-                            // Industry card: target must be in network
-                            if (this.state.isInNetwork(playerId, target.cityId)) {
-                                validIndices.push(idx);
-                            }
+                        } else if (card.type === CARD_TYPES.INDUSTRY &&
+                            card.industryType === target.industryType &&
+                            canUseIndustryCardAtTarget) {
+                            validIndices.push(idx);
                         } else if (card.type === CARD_TYPES.WILD_LOCATION) {
                             validIndices.push(idx);
-                        } else if (card.type === CARD_TYPES.WILD_INDUSTRY) {
-                            if (this.state.isInNetwork(playerId, target.cityId)) {
-                                validIndices.push(idx);
-                            }
+                        } else if (card.type === CARD_TYPES.WILD_INDUSTRY &&
+                            canUseIndustryCardAtTarget) {
+                            validIndices.push(idx);
                         }
                     } else {
                         // Any card can potentially be used for build

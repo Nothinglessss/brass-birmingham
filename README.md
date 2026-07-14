@@ -45,7 +45,7 @@ Choose from six industry types, each with a unique strategic role:
 | **Potteries** | Massive VP potential (up to 20 VP) | High cost, requires planning |
 | **Breweries** | Supply beer for selling goods | The most important industry |
 
-Select what to build, where, and for how much — all costs including coal and iron sourcing are calculated automatically.
+Select what to build and where. When several legal coal or iron sources are available, you choose which owner's resource to consume; forced sources and market prices are resolved automatically.
 
 ![Build modal — choose an industry, see the cost breakdown](screenshots/build_modal.png)
 
@@ -145,9 +145,11 @@ Open [http://localhost:8080](http://localhost:8080) in your browser. No build st
 3. **Choose your target** from the modal or board
 4. **Click a valid card** (highlighted with a gold pulse) to discard
 
+A single Sell action may flip any number of your legal sellable industries. After each sale, choose another eligible industry or select **Done Selling**; only the first sale discards a card.
+
 Disabled action buttons show **tooltips explaining why** they can't be used (e.g. "No iron available", "Need at least 3 cards").
 
-The game handles all resource sourcing (coal, iron, beer), market pricing, turn order, and scoring automatically.
+The game validates coal, iron, and beer sourcing against the board-game rules. Forced sources resolve automatically; when the rules permit a choice, the source picker shows the location, availability, and resource owner before you consume it.
 
 ### Tips for New Players
 

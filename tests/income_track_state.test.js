@@ -9,9 +9,10 @@ vm.createContext(context);
 
 const gameData = fs.readFileSync(path.join(repoRoot, 'js', 'gameData.js'), 'utf8');
 const gameState = fs.readFileSync(path.join(repoRoot, 'js', 'gameState.js'), 'utf8');
+const resourcePlanner = fs.readFileSync(path.join(repoRoot, 'js', 'resourcePlanner.js'), 'utf8');
 const gameLogic = fs.readFileSync(path.join(repoRoot, 'js', 'gameLogic.js'), 'utf8');
 vm.runInContext(
-    `const BOARD_GRAPH_SOURCE = { nodes: [], edges: [] };\n${gameData}\n${gameState}\n${gameLogic}\n` +
+    `const BOARD_GRAPH_SOURCE = { nodes: [], edges: [] };\n${gameData}\n${gameState}\n${resourcePlanner}\n${gameLogic}\n` +
     `globalThis.GameState = GameState; globalThis.GameLogic = GameLogic; ` +
     `globalThis.ACTIONS = ACTIONS; ` +
     `globalThis.lowestTrackPositionForIncomeLevel = lowestTrackPositionForIncomeLevel;`,
