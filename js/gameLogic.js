@@ -204,14 +204,14 @@ class GameLogic {
         for (const card of player.hand) {
             if (isBreweryFarm(cityId)) {
                 if (card.type === CARD_TYPES.INDUSTRY &&
-                    card.industryType === industryType &&
+                    getIndustryCardTypes(card).includes(industryType) &&
                     canUseIndustryCard) return true;
                 if (card.type === CARD_TYPES.WILD_INDUSTRY && canUseIndustryCard) return true;
                 continue;
             }
             if (card.type === CARD_TYPES.LOCATION && card.location === cityId) return true;
             if (card.type === CARD_TYPES.INDUSTRY &&
-                card.industryType === industryType &&
+                getIndustryCardTypes(card).includes(industryType) &&
                 canUseIndustryCard) return true;
             if (card.type === CARD_TYPES.WILD_LOCATION) return true;
             if (card.type === CARD_TYPES.WILD_INDUSTRY && canUseIndustryCard) return true;
@@ -1033,7 +1033,7 @@ class GameLogic {
                     if (target) {
                         if (isBreweryFarm(target.cityId)) {
                             if (card.type === CARD_TYPES.INDUSTRY &&
-                                card.industryType === target.industryType &&
+                                getIndustryCardTypes(card).includes(target.industryType) &&
                                 canUseIndustryCardAtTarget) {
                                 validIndices.push(idx);
                             } else if (card.type === CARD_TYPES.WILD_INDUSTRY &&
@@ -1045,7 +1045,7 @@ class GameLogic {
                         if (card.type === CARD_TYPES.LOCATION && card.location === target.cityId) {
                             validIndices.push(idx);
                         } else if (card.type === CARD_TYPES.INDUSTRY &&
-                            card.industryType === target.industryType &&
+                            getIndustryCardTypes(card).includes(target.industryType) &&
                             canUseIndustryCardAtTarget) {
                             validIndices.push(idx);
                         } else if (card.type === CARD_TYPES.WILD_LOCATION) {

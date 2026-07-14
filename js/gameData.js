@@ -502,11 +502,13 @@ const CARD_DECK = {
         industries: {
             [INDUSTRY_TYPES.IRON_WORKS]: 4,
             [INDUSTRY_TYPES.COAL_MINE]: 2,
-            [INDUSTRY_TYPES.COTTON_MILL]: 3, // cotton/mfg combined = 6, split
-            [INDUSTRY_TYPES.MANUFACTURER]: 3,
             [INDUSTRY_TYPES.POTTERY]: 2,
             [INDUSTRY_TYPES.BREWERY]: 5,
-        }
+        },
+        industryGroups: [{
+            industryTypes: [INDUSTRY_TYPES.COTTON_MILL, INDUSTRY_TYPES.MANUFACTURER],
+            count: 6,
+        }],
     },
     // 4-player has full deck
     4: {
@@ -520,13 +522,20 @@ const CARD_DECK = {
         industries: {
             [INDUSTRY_TYPES.IRON_WORKS]: 4,
             [INDUSTRY_TYPES.COAL_MINE]: 3,
-            [INDUSTRY_TYPES.COTTON_MILL]: 4, // cotton/mfg combined = 8, split
-            [INDUSTRY_TYPES.MANUFACTURER]: 4,
             [INDUSTRY_TYPES.POTTERY]: 3,
             [INDUSTRY_TYPES.BREWERY]: 5,
-        }
+        },
+        industryGroups: [{
+            industryTypes: [INDUSTRY_TYPES.COTTON_MILL, INDUSTRY_TYPES.MANUFACTURER],
+            count: 8,
+        }],
     }
 };
+
+function getIndustryCardTypes(card) {
+    if (Array.isArray(card.industryTypes)) return card.industryTypes;
+    return card.industryType ? [card.industryType] : [];
+}
 
 // ============================================================================
 // Coal and Iron Market

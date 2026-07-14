@@ -287,12 +287,11 @@ class UIManager {
                 `;
             } else if (card.type === CARD_TYPES.INDUSTRY) {
                 cardEl.classList.add('industry-card');
-                const display = INDUSTRY_DISPLAY[card.industryType];
-                const svgIcon = CARD_SVG_ICONS[card.industryType] || '';
+                const view = this.getIndustryCardViewModel(card);
                 cardEl.innerHTML = `
                     <div class="card-type">Industry</div>
-                    ${svgIcon || `<div class="card-icon">${display.icon}</div>`}
-                    <div class="card-name">${display.name}</div>
+                    ${view.icons.join('')}
+                    <div class="card-name">${view.name}</div>
                 `;
             } else if (card.type === CARD_TYPES.WILD_LOCATION) {
                 cardEl.classList.add('wild-card');
@@ -369,6 +368,19 @@ class UIManager {
                 btn.title = defaultTitles[action] || '';
             }
         });
+    }
+
+    getIndustryCardViewModel(card) {
+        const industryTypes = getIndustryCardTypes(card);
+        return {
+            name: industryTypes
+                .map(industryType => INDUSTRY_DISPLAY[industryType].name)
+                .join(' / '),
+            icons: industryTypes.map(industryType =>
+                CARD_SVG_ICONS[industryType] ||
+                `<div class="card-icon">${INDUSTRY_DISPLAY[industryType].icon}</div>`
+            ),
+        };
     }
 
     updatePlayerMat() {

@@ -144,6 +144,18 @@ class GameState {
             }
         }
 
+        for (const group of deckData.industryGroups || []) {
+            for (let i = 0; i < group.count; i++) {
+                deck.push({
+                    type: CARD_TYPES.INDUSTRY,
+                    industryTypes: [...group.industryTypes],
+                    name: group.industryTypes
+                        .map(industryType => INDUSTRY_DISPLAY[industryType].name)
+                        .join(' / '),
+                });
+            }
+        }
+
         this.shuffleArray(deck);
         this.drawDeck = deck;
     }
