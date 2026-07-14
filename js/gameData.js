@@ -388,19 +388,19 @@ const MERCHANTS = {
 // null = no goods demand icons; otherwise specific type
 const MERCHANT_TILES = {
     2: [
-        { location: 'shrewsbury', buys: null },
-        { location: 'oxford', buys: INDUSTRY_TYPES.MANUFACTURER },
-        { location: 'oxford', buys: INDUSTRY_TYPES.COTTON_MILL },
-        { location: 'gloucester', buys: INDUSTRY_TYPES.COTTON_MILL },
-        { location: 'gloucester', buys: INDUSTRY_TYPES.MANUFACTURER },
+        { buys: null },
+        { buys: INDUSTRY_TYPES.MANUFACTURER },
+        { buys: INDUSTRY_TYPES.COTTON_MILL },
+        { buys: INDUSTRY_TYPES.COTTON_MILL },
+        { buys: INDUSTRY_TYPES.MANUFACTURER },
     ],
     3: [
-        { location: 'warrington', buys: INDUSTRY_TYPES.POTTERY },
-        { location: 'warrington', buys: null },
+        { buys: INDUSTRY_TYPES.POTTERY },
+        { buys: null },
     ],
     4: [
-        { location: 'nottingham', buys: INDUSTRY_TYPES.COTTON_MILL },
-        { location: 'nottingham', buys: INDUSTRY_TYPES.MANUFACTURER },
+        { buys: INDUSTRY_TYPES.COTTON_MILL },
+        { buys: INDUSTRY_TYPES.MANUFACTURER },
     ],
 };
 
