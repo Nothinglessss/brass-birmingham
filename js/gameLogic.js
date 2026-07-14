@@ -184,6 +184,14 @@ class GameLogic {
         return targets;
     }
 
+    findValidBuildTarget(playerId, cityId, slotIndex, industryType) {
+        return this.getValidBuildTargets(playerId).find(target =>
+            target.cityId === cityId &&
+            target.slotIndex === slotIndex &&
+            target.industryType === industryType
+        );
+    }
+
     hasBoardPresence(playerId) {
         return Object.values(this.state.boardLinks)
             .some(link => link.playerId === playerId) ||
@@ -254,6 +262,10 @@ class GameLogic {
     }
 
     executeBuild(playerId, cityId, slotIndex, industryType, cardIndex, resourceSelections = []) {
+        if (!this.findValidBuildTarget(playerId, cityId, slotIndex, industryType)) {
+            return { success: false, message: 'Selected location is not a valid build target' };
+        }
+
         const player = this.state.players[playerId];
         const key = isBreweryFarm(cityId) ? `farm_${cityId}` : `${cityId}_${slotIndex}`;
         const validCards = this.getValidCardsForAction(playerId, ACTIONS.BUILD, { cityId, slotIndex, industryType });
