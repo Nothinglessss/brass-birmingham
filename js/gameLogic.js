@@ -543,79 +543,79 @@ class GameLogic {
         return targets;
     }
 
-    executeSell(playerId, tileKeys, cardIndex) {
-        // tileKeys: array of board keys to sell
-        const player = this.state.players[playerId];
-        const results = [];
-
-        // Per game rules, a single sell action claims at most ONE merchant bonus.
-        let merchantBonusClaimed = false;
-
-        for (const key of tileKeys) {
-            const tile = this.state.boardIndustries[key];
-            if (!tile || tile.playerId !== playerId || tile.flipped) continue;
-
-            const beerNeeded = tile.tileData.beersToSell || 0;
-            const [cityId] = key.split('_');
-
-            // Consume beer — verify enough is available before flipping
-            if (beerNeeded > 0) {
-                const beerSources = this.state.findBeerSources(cityId, playerId);
-                if (beerSources.length < beerNeeded) continue; // Can't afford beer; skip tile
-                for (let i = 0; i < beerNeeded; i++) {
-                    const src = beerSources[i];
-                    if (src.type === 'merchant') {
-                        this.state.merchantTiles[src.index].hasBeer = false;
-                    } else {
-                        this.state.consumeResource(src.key);
-                    }
-                }
-            }
-
-            // Flip tile
-            tile.flipped = true;
-            this.state.adjustIncome(playerId, tile.tileData.income);
-
-            // Check for merchant bonus (at most one bonus per sell action)
-            if (!merchantBonusClaimed) {
-                const connected = this.state.getConnectedLocations(cityId);
-                for (const mt of this.state.merchantTiles) {
-                    if (!mt.bonusClaimed && connected.has(mt.location)) {
-                        if (mt.buys === null || mt.buys === tile.type) {
-                            mt.bonusClaimed = true;
-                            merchantBonusClaimed = true;
-                            // Apply bonus
-                            const merchData = MERCHANTS[mt.location];
-                            if (merchData) {
-                                switch (merchData.bonusType) {
-                                    case 'vp':
-                                        player.vp += merchData.bonusAmount;
-                                        break;
-                                    case 'money':
-                                        player.money += merchData.bonusAmount;
-                                        break;
-                                    case 'income':
-                                        this.state.adjustIncome(playerId, merchData.bonusAmount);
-                                        break;
-                                    case 'develop':
-                                        // Free develop: remove lowest tile from player mat (no iron cost)
-                                        this.applyFreeDevelop(playerId, merchData.bonusAmount);
-                                        break;
-                                }
-                            }
-                            break; // Only one merchant per sell action
-                        }
-                    }
-                }
-            }
-
-            results.push(`Sold ${INDUSTRY_DISPLAY[tile.type].name} Lv${tile.tileData.level}`);
+    executeSell(playerId, tileKey, cardIndex) {
+        const validCards = this.getValidCardsForAction(playerId, ACTIONS.SELL);
+        if (!validCards.includes(cardIndex)) {
+            return { success: false, message: 'Invalid card for this sell action' };
         }
 
-        // Discard card
-        this.discardCard(playerId, cardIndex);
+        const result = this.executeSellIndustry(playerId, tileKey);
+        if (!result.success) return result;
 
-        return { success: true, message: results.join(', ') };
+        this.discardCard(playerId, cardIndex);
+        return result;
+    }
+
+    executeSellIndustry(playerId, tileKey) {
+        const target = this.getValidSellTargets(playerId).find(entry => entry.key === tileKey);
+        if (!target) {
+            return { success: false, message: 'Industry is no longer available to sell' };
+        }
+
+        const player = this.state.players[playerId];
+        const tile = this.state.boardIndustries[tileKey];
+        const beerNeeded = tile.tileData.beersToSell || 0;
+        const beerSources = this.state.findBeerSources(target.cityId, playerId);
+        if (beerSources.length < beerNeeded) {
+            return { success: false, message: 'Not enough beer to sell this industry' };
+        }
+
+        const usedMerchantIndices = [];
+        for (let i = 0; i < beerNeeded; i++) {
+            const source = beerSources[i];
+            if (source.type === 'merchant') {
+                this.state.merchantTiles[source.index].hasBeer = false;
+                usedMerchantIndices.push(source.index);
+            } else {
+                this.state.consumeResource(source.key);
+            }
+        }
+
+        tile.flipped = true;
+        this.state.adjustIncome(playerId, tile.tileData.income);
+
+        for (const merchantIndex of usedMerchantIndices) {
+            const merchant = this.state.merchantTiles[merchantIndex];
+            if (merchant.bonusClaimed) continue;
+            if (merchant.buys !== null && merchant.buys !== tile.type) continue;
+
+            merchant.bonusClaimed = true;
+            const merchantData = MERCHANTS[merchant.location];
+            if (!merchantData) continue;
+            switch (merchantData.bonusType) {
+                case 'vp':
+                    player.vp += merchantData.bonusAmount;
+                    break;
+                case 'money':
+                    player.money += merchantData.bonusAmount;
+                    break;
+                case 'income':
+                    this.state.adjustIncome(playerId, merchantData.bonusAmount);
+                    break;
+                case 'develop':
+                    this.applyFreeDevelop(playerId, merchantData.bonusAmount);
+                    break;
+            }
+        }
+
+        return {
+            success: true,
+            message: `Sold ${INDUSTRY_DISPLAY[tile.type].name} Lv${tile.tileData.level}`,
+        };
+    }
+
+    executeAdditionalSell(playerId, tileKey) {
+        return this.executeSellIndustry(playerId, tileKey);
     }
 
     // ========================================================================
