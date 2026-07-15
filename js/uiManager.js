@@ -1617,6 +1617,10 @@ class UIManager {
         };
     }
 
+    formatGameOverMoney(amount) {
+        return `\u00A3${amount}`;
+    }
+
     showGameOver(scores) {
         const overlay = document.getElementById('gameover-overlay');
 
@@ -1631,7 +1635,7 @@ class UIManager {
                 <td style="color:${p.color}">${p.name}</td>
                 <td>${p.vp}</td>
                 <td>${p.income}</td>
-                <td>£${p.money}</td>
+                <td>${this.formatGameOverMoney(p.money)}</td>
             </tr>`;
         });
         html += '</tbody></table>';
