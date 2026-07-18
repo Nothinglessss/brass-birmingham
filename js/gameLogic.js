@@ -711,7 +711,7 @@ class GameLogic {
             const connected = this.state.getConnectedLocations(cityId);
             for (let merchantIndex = 0; merchantIndex < this.state.merchantTiles.length; merchantIndex++) {
                 const merchant = this.state.merchantTiles[merchantIndex];
-                if (merchant.buys !== tile.type || !connected.has(merchant.location)) continue;
+                if (!merchantAcceptsIndustry(merchant, tile.type) || !connected.has(merchant.location)) continue;
 
                 const plan = this.planSellResources({
                     playerId,

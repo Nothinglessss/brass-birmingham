@@ -141,6 +141,27 @@ function testBlankMerchantTileDoesNotRenderSellEntry() {
     assert.equal(slots.length, 0);
 }
 
+function testWildcardMerchantRendersAndAcceptsEverySellableProduct() {
+    let renderer;
+    assert.doesNotThrow(() => {
+        renderer = createRendererWithMerchants([{
+            location: 'oxford',
+            buys: 'any',
+            hasBeer: true,
+            bonusClaimed: false,
+        }]);
+    });
+    renderer.setMerchantProductFilter(context.INDUSTRY_TYPES.POTTERY);
+
+    const anyLabel = collectNodes(
+        renderer.svg,
+        node => node.tagName === 'text' && node.attrs.class === 'merchant-buy-label'
+    ).find(node => node.textContent === 'Any');
+
+    assert.ok(anyLabel);
+    assert.equal(anyLabel.attrs.fill, '#b87333');
+}
+
 function testYellowDotRepresentsMerchantBonusBeer() {
     const renderer = createRendererWithMerchants([
         {
@@ -287,6 +308,7 @@ function testMerchantBonusTextUsesDarkerGrey() {
 
 testMerchantLabelsGreyOnlyWhenTheyDoNotAcceptFilteredProduct();
 testBlankMerchantTileDoesNotRenderSellEntry();
+testWildcardMerchantRendersAndAcceptsEverySellableProduct();
 testYellowDotRepresentsMerchantBonusBeer();
 testMerchantBonusTextRendersBelowProductEntries();
 testMerchantCityLabelsAreBold();
