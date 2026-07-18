@@ -2061,7 +2061,7 @@ class BoardRenderer {
 
     merchantAcceptsProduct(merchantTile) {
         if (!this.merchantProductFilter) return true;
-        return merchantTile.buys === this.merchantProductFilter;
+        return merchantAcceptsIndustry(merchantTile, this.merchantProductFilter);
     }
 
     drawMerchants() {
@@ -2120,7 +2120,9 @@ class BoardRenderer {
                     'font-size': '7',
                     fill: this.merchantAcceptsProduct(mt) ? '#b87333' : '#555',
                 });
-                buyText.textContent = INDUSTRY_DISPLAY[mt.buys].shortName;
+                buyText.textContent = mt.buys === MERCHANT_DEMAND_ANY
+                    ? 'Any'
+                    : INDUSTRY_DISPLAY[mt.buys].shortName;
                 g.appendChild(buyText);
 
                 if (mt.hasBeer) {
