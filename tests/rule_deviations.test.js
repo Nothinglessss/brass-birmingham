@@ -180,18 +180,38 @@ function testMerchantTilesAreDealtToMerchantSpacesAfterShuffle() {
             return acc;
         }, {});
 
-        assert.deepEqual(byLocation.shrewsbury, [context.INDUSTRY_TYPES.MANUFACTURER]);
+        assert.deepEqual(byLocation.shrewsbury, [null]);
         assert.deepEqual(byLocation.gloucester, [
-            context.INDUSTRY_TYPES.COTTON_MILL,
-            context.INDUSTRY_TYPES.COTTON_MILL,
+            'any',
+            context.INDUSTRY_TYPES.POTTERY,
         ]);
         assert.deepEqual(byLocation.oxford, [
+            context.INDUSTRY_TYPES.COTTON_MILL,
             context.INDUSTRY_TYPES.MANUFACTURER,
-            null,
         ]);
     } finally {
         context.GameState.prototype.shuffleArray = originalShuffle;
     }
+}
+
+function testWildcardMerchantAcceptsPotterySale() {
+    const game = createGame(2);
+    const logic = new context.GameLogic(game);
+    game.players[0].hand = [{ type: context.CARD_TYPES.LOCATION, location: 'birmingham', name: 'Birmingham' }];
+    game.merchantTiles = [{
+        location: 'oxford',
+        buys: 'any',
+        hasBeer: false,
+        bonusClaimed: false,
+    }];
+    game.boardLinks['birmingham-oxford'] = { playerId: 0, type: 'canal' };
+    game.boardIndustries.birmingham_0 = makeTile(0, context.INDUSTRY_TYPES.POTTERY);
+    game.boardIndustries.birmingham_0.tileData.beersToSell = 0;
+
+    const result = logic.executeSell(0, 'birmingham_0', 0, 0);
+
+    assert.equal(result.success, true);
+    assert.equal(game.boardIndustries.birmingham_0.flipped, true);
 }
 
 function testRailEraCanBuildTwoRailsWithBeer() {
@@ -318,6 +338,7 @@ testSellActionRejectsMultipleIndustries();
 testClaimedMerchantStillAcceptsMatchingGoodsSale();
 testBlankMerchantDoesNotAcceptGoodsSale();
 testMerchantTilesAreDealtToMerchantSpacesAfterShuffle();
+testWildcardMerchantAcceptsPotterySale();
 testRailEraCanBuildTwoRailsWithBeer();
 testPlayersStartWithZeroIncome();
 testIncomeAdvancesByTrackSpacesNotDirectLevels();
