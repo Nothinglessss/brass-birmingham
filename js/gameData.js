@@ -385,17 +385,26 @@ const MERCHANTS = {
 };
 
 // Merchant tiles that get placed: what goods each merchant tile buys.
-// null = no goods demand icons; otherwise specific type
+// null = no goods demand icons; MERCHANT_DEMAND_ANY = all three sellable goods.
+const MERCHANT_DEMAND_ANY = 'any';
+
+function merchantAcceptsIndustry(merchantTile, industryType) {
+    return Boolean(merchantTile) && (
+        merchantTile.buys === MERCHANT_DEMAND_ANY ||
+        merchantTile.buys === industryType
+    );
+}
+
 const MERCHANT_TILES = {
     2: [
+        { buys: INDUSTRY_TYPES.MANUFACTURER },
+        { buys: INDUSTRY_TYPES.COTTON_MILL },
+        { buys: INDUSTRY_TYPES.POTTERY },
+        { buys: MERCHANT_DEMAND_ANY },
         { buys: null },
-        { buys: INDUSTRY_TYPES.MANUFACTURER },
-        { buys: INDUSTRY_TYPES.COTTON_MILL },
-        { buys: INDUSTRY_TYPES.COTTON_MILL },
-        { buys: INDUSTRY_TYPES.MANUFACTURER },
     ],
     3: [
-        { buys: INDUSTRY_TYPES.POTTERY },
+        { buys: MERCHANT_DEMAND_ANY },
         { buys: null },
     ],
     4: [
