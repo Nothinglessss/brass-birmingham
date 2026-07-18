@@ -339,7 +339,7 @@ class ResourcePlanner {
         if (!tile || tile.playerId !== context.playerId || tile.flipped) {
             return { status: 'invalid', message: 'Sell target is no longer valid' };
         }
-        if (!merchant || merchant.buys !== tile.type) {
+        if (!merchantAcceptsIndustry(merchant, tile.type)) {
             return { status: 'invalid', message: 'Selected Merchant does not buy this industry' };
         }
 
